@@ -234,6 +234,7 @@ class FlxSound extends FlxBasic
 		name = null;
 		artist = null;
 		_tagsRead = false;
+		_data = null;
 	}
 	
 	override public function destroy():Void
@@ -337,7 +338,8 @@ class FlxSound extends FlxBasic
 		
 		if ((EmbeddedSound is FlxSoundData))
 		{
-			_sound = (EmbeddedSound : FlxSoundData).sound;
+			_data = EmbeddedSound;
+			_sound = _data.sound;
 		}
 		else if ((EmbeddedSound is Sound))
 		{
@@ -591,6 +593,32 @@ class FlxSound extends FlxBasic
 	 * @since CodenameCrew's Flixel
 	 */
 	public static var defaultTimeScaledPitch:Bool = true;
+
+	/**
+	 * Sound data this `FlxSound` plays.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var data(get, never):FlxSoundData;
+
+	var _data:FlxSoundData;
+
+	function get_data():FlxSoundData
+	{
+		if (_sound == null)
+			return null;
+		if (_data == null || _data.isDestroyed || _data.sound != _sound)
+			_data = FlxSoundData.fromSound(_sound, null, false);
+		return _data;
+	}
+
+	/**
+	 * The lime audio source playing this sound.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var source(get, never):AudioSource;
+
+	inline function get_source():AudioSource
+		return _source;
 
 	/**
 	 * Whether a sound is loaded into this `FlxSound`.
