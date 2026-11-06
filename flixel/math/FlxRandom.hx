@@ -255,7 +255,9 @@ class FlxRandom
 	 * @param   EndIndex       Optional index at which to restrict selection. Ignored if 0, which is the default value.
 	 * @return  A pseudorandomly chosen object from Objects.
 	 */
+	#if FLX_GENERIC
 	@:generic
+	#end
 	public function getObject<T>(Objects:Array<T>, ?WeightsArray:Array<Float>, StartIndex:Int = 0, ?EndIndex:Null<Int>):T
 	{
 		var selected:Null<T> = null;
@@ -296,13 +298,46 @@ class FlxRandom
 	}
 
 	/**
+	 * Shuffles the entries in an array into a new pseudorandom order.
+	 *
+	 * @param   Objects        An array to shuffle.
+	 * @param   HowManyTimes   How many swaps to perform during the shuffle operation.
+	 *                         A good rule of thumb is 2-4 times the number of objects in the list.
+	 * @return  The newly shuffled array.
+	 */
+	#if FLX_GENERIC
+	@:generic
+	#end
+	@:deprecated("Unless you rely on reproducing the exact output of shuffleArray(), you should use shuffle() instead, which is both faster and higher quality.")
+	public function shuffleArray<T>(Objects:Array<T>, HowManyTimes:Int):Array<T>
+	{
+		HowManyTimes = Std.int(Math.max(HowManyTimes, 0));
+
+		var tempObject:Null<T> = null;
+
+		for (i in 0...HowManyTimes)
+		{
+			var pick1:Int = int(0, Objects.length - 1);
+			var pick2:Int = int(0, Objects.length - 1);
+
+			tempObject = Objects[pick1];
+			Objects[pick1] = Objects[pick2];
+			Objects[pick2] = tempObject;
+		}
+
+		return Objects;
+	}
+
+	/**
 	 * Shuffles the entries in an array in-place into a new pseudorandom order,
 	 * using the standard Fisher-Yates shuffle algorithm.
 	 *
 	 * @param  array  The array to shuffle.
 	 * @since  4.2.0
 	 */
+	#if FLX_GENERIC
 	@:generic
+	#end
 	public function shuffle<T>(array:Array<T>):Void
 	{
 		var maxValidIndex = array.length - 1;

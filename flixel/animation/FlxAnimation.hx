@@ -1,6 +1,8 @@
 package flixel.animation;
 
+import flixel.util.FlxDestroyUtil;
 import flixel.FlxG;
+import flixel.util.FlxSignal.FlxTypedSignal;
 
 /**
  * Just a helper structure for the `FlxSprite` animation system.
@@ -25,16 +27,28 @@ class FlxAnimation extends FlxBaseAnimation
 
 	/**
 	 * Seconds between frames (inverse of the framerate)
-	 * 
+	 *
 	 * Note: `FlxFrameCollections` and `FlxAtlasFrames` may have their own duration set per-frame,
 	 * those values will override this value.
 	 */
 	public var frameDuration:Float = 0;
-	
+
+	/**
+	 * Seconds between frames (inverse of the framerate)
+	 */
+	@:deprecated('FlxAnimation.delay is deprecated, use `frameDuration`')
+	public var delay(get, set):Float;
+
 	/**
 	 * Whether the current animation has finished.
 	 */
 	public var finished(default, null):Bool = true;
+
+	/**
+	 * Whether the current animation is at the end aka the last frame.
+	 * Works both when looping and reversed.
+	**/
+	public var isAtEnd(get, never):Bool;
 
 	/**
 	 * Whether the current animation gets updated or not.
@@ -82,9 +96,38 @@ class FlxAnimation extends FlxBaseAnimation
 	public var timeScale:Float = 1.0;
 
 	/**
+	 * If addByIndices was used
+	 */
+	public var usesIndices:Bool = false;
+
+	@:noCompletion public var usesIndicies(get, set):Bool;
+
+	inline function get_usesIndicies():Bool
+		return usesIndices;
+
+	inline function set_usesIndicies(value:Bool):Bool
+		return usesIndices = value;
+
+	/**
 	 * Internal, used to time each frame of animation.
 	 */
 	var _frameTimer:Float = 0;
+
+	/**
+	 * Internal, used to wait the frameDuration at the end of the animation.
+	 */
+	var _frameFinishedEndTimer:Float = 0;
+
+	/**
+	 * Internal, used to avoid first frame being only seen shorter than the next frames.
+	 * @since CodenameCrew's Flixel
+	 */
+	var _playTicks:Null<Float>;
+
+	public var onFinish:FlxTypedSignal<Void->Void> = new FlxTypedSignal();
+	public var onFinishEnd:FlxTypedSignal<Void->Void> = new FlxTypedSignal();
+	public var onPlay:FlxTypedSignal<String->Bool->Bool->Int->Void> = new FlxTypedSignal();
+	public var onLoop:FlxTypedSignal<Void->Void> = new FlxTypedSignal();
 
 	/**
 	 * @param   name        What this animation should be called (e.g. `"run"`).
@@ -110,6 +153,10 @@ class FlxAnimation extends FlxBaseAnimation
 	 */
 	override public function destroy():Void
 	{
+		FlxDestroyUtil.destroy(onFinish);
+		FlxDestroyUtil.destroy(onFinishEnd);
+		FlxDestroyUtil.destroy(onPlay);
+		FlxDestroyUtil.destroy(onLoop);
 		frames = null;
 		name = null;
 		super.destroy();
@@ -137,6 +184,7 @@ class FlxAnimation extends FlxBaseAnimation
 		reversed = Reversed;
 		paused = false;
 		_frameTimer = 0;
+		_playTicks = FlxG.game.ticks;
 		finished = frameDuration == 0;
 
 		var maxFrameIndex:Int = numFrames - 1;
@@ -152,7 +200,20 @@ class FlxAnimation extends FlxBaseAnimation
 		}
 
 		if (finished)
-			parent.fireFinishCallback(name);
+		{
+			_frameFinishedEndTimer = frameDuration;
+			onFinish.dispatch();
+			if (parent != null)
+				parent.fireFinishCallback(name);
+		}
+		else
+		{
+			_frameFinishedEndTimer = 0;
+		}
+
+		if (parent != null)
+			parent.firePlayCallback(name, Force, Reversed, curFrame);
+		onPlay.dispatch(name, Force, Reversed, curFrame);
 	}
 
 	public function restart():Void
@@ -195,10 +256,37 @@ class FlxAnimation extends FlxBaseAnimation
 			play(false, reversed);
 	}
 
+	inline function _doFinishedEndCallback():Void
+	{
+		parent.onFinishEnd.dispatch(name);
+		onFinishEnd.dispatch();
+	}
+
 	override public function update(elapsed:Float):Void
 	{
+		if (_playTicks == FlxG.game.ticks)
+		{
+			_playTicks = null;
+			return;
+		}
+
+		if (paused)
+			return;
+
+		if (_frameFinishedEndTimer > 0)
+		{
+			_frameFinishedEndTimer -= elapsed * timeScale;
+			if (_frameFinishedEndTimer <= 0)
+			{
+				_frameFinishedEndTimer = 0;
+				_doFinishedEndCallback();
+			}
+		}
+		if (finished)
+			return;
+
 		var curFrameDuration = getCurrentFrameDuration();
-		if (curFrameDuration == 0 || finished || paused)
+		if (curFrameDuration == 0)
 			return;
 
 		_frameTimer += elapsed * timeScale;
@@ -211,6 +299,7 @@ class FlxAnimation extends FlxBaseAnimation
 				{
 					curFrame = numFrames - 1;
 					parent.fireLoopCallback(name);
+					onLoop.dispatch();
 				}
 				else
 				{
@@ -223,17 +312,18 @@ class FlxAnimation extends FlxBaseAnimation
 				{
 					curFrame = loopPoint;
 					parent.fireLoopCallback(name);
+					onLoop.dispatch();
 				}
 				else
 				{
 					curFrame++;
 				}
 			}
-			
+
 			// prevents null ref when the sprite is destroyed on finishCallback (#2782)
 			if (finished)
 				break;
-			
+
 			curFrameDuration = getCurrentFrameDuration();
 		}
 	}
@@ -278,8 +368,13 @@ class FlxAnimation extends FlxBaseAnimation
 
 		curIndex = frames[curFrame];
 
-		if (finished && parent != null)
-			parent.fireFinishCallback(name);
+		if (finished)
+		{
+			_frameFinishedEndTimer = frameDuration;
+			onFinish.dispatch();
+			if (parent != null)
+				parent.fireFinishCallback(name);
+		}
 
 		return frame;
 	}
@@ -287,5 +382,20 @@ class FlxAnimation extends FlxBaseAnimation
 	inline function get_numFrames():Int
 	{
 		return frames.length;
+	}
+
+	inline function get_delay()
+	{
+		return frameDuration;
+	}
+
+	inline function set_delay(value:Float)
+	{
+		return frameDuration = value;
+	}
+
+	inline function get_isAtEnd()
+	{
+		return reversed ? curFrame == 0 : curFrame == numFrames - 1;
 	}
 }

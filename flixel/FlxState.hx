@@ -11,6 +11,10 @@ import flixel.util.typeLimit.NextState;
  * It is for all intents and purpose a fancy `FlxContainer`. And really, it's not even that fancy.
  */
 @:keepSub // workaround for HaxeFoundation/haxe#3749
+#if FLX_NO_UNIT_TEST
+@:autoBuild(flixel.system.macros.FlxMacroUtil.deprecateOverride("switchTo", "switchTo is deprecated, use startOutro"))
+#end
+// show deprecation warning when `switchTo` is overriden in dereived classes
 class FlxState extends FlxContainer
 {
 	/**
@@ -39,6 +43,16 @@ class FlxState extends FlxContainer
 	 * `false` might reduce state creation time, at greater memory cost.
 	 */
 	public var destroySubStates:Bool = true;
+
+	/**
+	 * Tracker for whenever the state has already been created.
+	 */
+	public var created:Bool = false;
+
+	/**
+	 * Tracker for whenever the state has already been post-created.
+	 */
+	public var postCreated:Bool = false;
 
 	/**
 	 * The natural background color the cameras default to. In `AARRGGBB` format.
@@ -101,7 +115,10 @@ class FlxState extends FlxContainer
 	 * We do NOT recommend initializing any flixel objects or utilizing flixel features in
 	 * the constructor, unless you want some crazy unpredictable things to happen!
 	 */
-	public function create():Void {}
+	public function create():Void
+	{
+		created = true;
+	}
 
 	override function draw():Void
 	{
@@ -124,6 +141,14 @@ class FlxState extends FlxContainer
 	public function closeSubState():Void
 	{
 		_requestSubStateReset = true;
+	}
+
+	/**
+	 * Called at the very end of the state creation process.
+	 */
+	public function createPost():Void
+	{
+		postCreated = true;
 	}
 
 	/**
@@ -155,13 +180,19 @@ class FlxState extends FlxContainer
 
 			subState._parentState = this;
 
-			if (!subState._created)
+			var didCreate = false;
+
+			if (didCreate = !subState._created)
 			{
 				subState._created = true;
 				subState.create();
 			}
 			if (subState.openCallback != null)
 				subState.openCallback();
+
+			if (didCreate)
+				subState.createPost();
+
 			if (_subStateOpened != null)
 				_subStateOpened.dispatch(subState);
 		}
@@ -184,6 +215,18 @@ class FlxState extends FlxContainer
 		super.destroy();
 	}
 
+	/**
+	 * Called from `FlxG.switchState()`. If `false` is returned, the state
+	 * switch is cancelled - the default implementation returns `true`.
+	 *
+	 * Useful for customizing state switches, e.g. for transition effects.
+	 */
+	@:deprecated("switchTo is deprecated, use startOutro")
+	public function switchTo(nextState:FlxState):Bool
+	{
+		return true;
+	}
+	
 	/**
 	 * Called from `FlxG.switchState()`, when `onOutroComplete` is called, the actual state
 	 * switching will happen.
@@ -220,7 +263,11 @@ class FlxState extends FlxContainer
 	 * @param   Width    The new window width
 	 * @param   Height   The new window Height
 	 */
-	public function onResize(Width:Int, Height:Int):Void {}
+	public function onResize(Width:Int, Height:Int):Void
+	{
+		if (subState != null)
+			subState.onResize(Width, Height);
+	}
 
 	@:allow(flixel.FlxGame)
 	function tryUpdate(elapsed:Float):Void

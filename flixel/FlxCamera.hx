@@ -26,6 +26,7 @@ import openfl.Vector;
 import openfl.display.BlendMode;
 import openfl.display3D.Context3DBlendTarget;
 import openfl.filters.BitmapFilter;
+import openfl.filters.ShaderFilter;
 
 using flixel.util.FlxColorTransformUtil;
 
@@ -144,6 +145,35 @@ class FlxCamera extends FlxBasic
 	 * Allow camera follow target.
 	 */
 	public var followActive:Bool = true;
+
+	/**
+	 * Alias of `followActive`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var followEnabled(get, set):Bool;
+
+	inline function get_followEnabled():Bool
+		return followActive;
+
+	inline function set_followEnabled(value:Bool):Bool
+		return followActive = value;
+
+	/**
+	 * Extra zoom factor applied on top of `zoom` (the scale uses `getActualZoom()`).
+	 * @since CodenameCrew's Flixel
+	 */
+	public var zoomMultiplier(default, set):Float = 1.0;
+
+	/**
+	 * Flags read by Codename Engine sprites when preparing frame matrices.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var flipX:Bool = false;
+
+	/**
+	 * @since CodenameCrew's Flixel
+	 */
+	public var flipY:Bool = false;
 
 	/**
 	 * You can assign a "dead zone" to the camera in order to better control its movement.
@@ -2153,9 +2183,79 @@ class FlxCamera extends FlxBasic
 	function set_zoom(Zoom:Float):Float
 	{
 		zoom = (Zoom == 0) ? defaultZoom : Zoom;
-		setScale(zoom, zoom);
+		setScale(getActualZoom(), getActualZoom());
 		return zoom;
 	}
+
+	function set_zoomMultiplier(value:Float):Float
+	{
+		zoomMultiplier = value;
+		setScale(getActualZoom(), getActualZoom());
+		return value;
+	}
+
+	/**
+	 * `zoom` multiplied by `zoomMultiplier`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public inline function getActualZoom():Float
+		return zoom * zoomMultiplier;
+
+	/**
+	 * Adds a shader to this camera as a `ShaderFilter`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function addShader(shader:FlxShader):ShaderFilter
+	{
+		if (filters == null) filters = [];
+
+		final filter = new ShaderFilter(shader);
+		filters.push(filter);
+		return filter;
+	}
+
+	/**
+	 * Removes a shader previously added with `addShader`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function removeShader(shader:FlxShader):Bool
+	{
+		if (filters == null) return false;
+
+		for (f in filters)
+		{
+			if (f is ShaderFilter && cast(f, ShaderFilter).shader == shader)
+			{
+				filters.remove(f);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Hook called by `FlxObject.getScreenPosition`, lets cameras alter an object's screen position.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function alterScreenPosition(spr:FlxObject, pos:FlxPoint):FlxPoint
+	{
+		return pos;
+	}
+
+	/**
+	 * Same as `getViewMarginRect`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public inline function getViewRect(?rect:FlxRect):FlxRect
+		return getViewMarginRect(rect);
+
+	@:noCompletion var _filters(get, set):Null<Array<BitmapFilter>>;
+
+	@:noCompletion inline function get__filters():Null<Array<BitmapFilter>>
+		return filters;
+
+	@:noCompletion inline function set__filters(value:Null<Array<BitmapFilter>>):Null<Array<BitmapFilter>>
+		return filters = value;
 
 	function set_alpha(Alpha:Float):Float
 	{

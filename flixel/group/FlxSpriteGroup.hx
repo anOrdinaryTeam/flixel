@@ -164,6 +164,9 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 	 */
 	override public function isOnScreen(?Camera:FlxCamera):Bool
 	{
+		if (forceIsOnScreen)
+			return true;
+
 		for (sprite in group.members)
 		{
 			if (sprite != null && sprite.exists && sprite.visible && sprite.isOnScreen(Camera))
@@ -305,7 +308,7 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 
 	/**
 	 * Adjusts the position and other properties of the soon-to-be child of this sprite group.
-	 * Private helper to avoid duplicate code in `add()` and `insert()`.
+	 * helper to avoid duplicate code in `add()` and `insert()`.
 	 *
 	 * @param	Sprite	The sprite or sprite group that is about to be added or inserted into the group.
 	 */
@@ -729,21 +732,21 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 	override function set_x(Value:Float):Float
 	{
 		if (exists && x != Value)
-			transformChildren(xTransform, Value - x);// offset
+			transformChildren(xTransform, Value - x); // offset
 		return x = Value;
 	}
 
 	override function set_y(Value:Float):Float
 	{
 		if (exists && y != Value)
-			transformChildren(yTransform, Value - y);// offset
+			transformChildren(yTransform, Value - y); // offset
 		return y = Value;
 	}
 
 	override function set_angle(Value:Float):Float
 	{
 		if (exists && angle != Value)
-			transformChildren(angleTransform, Value - angle);// offset
+			transformChildren(angleTransform, Value - angle); // offset
 		return angle = Value;
 	}
 
@@ -869,7 +872,7 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 
 			var minX:Float;
 			if (member.flixelType == SPRITEGROUP)
-				minX = (cast member:FlxSpriteGroup).findMinX();
+				minX = (cast member : FlxSpriteGroup).findMinX();
 			else
 				minX = member.x;
 
@@ -900,7 +903,7 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 
 			var maxX:Float;
 			if (member.flixelType == SPRITEGROUP)
-				maxX = (cast member:FlxSpriteGroup).findMaxX();
+				maxX = (cast member : FlxSpriteGroup).findMaxX();
 			else
 				maxX = member.x + member.width;
 
@@ -947,7 +950,7 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 
 			var minY:Float;
 			if (member.flixelType == SPRITEGROUP)
-				minY = (cast member:FlxSpriteGroup).findMinY();
+				minY = (cast member : FlxSpriteGroup).findMinY();
 			else
 				minY = member.y;
 
@@ -978,7 +981,7 @@ class FlxTypedSpriteGroup<T:FlxSprite> extends FlxSprite implements IFlxGroupabl
 
 			var maxY:Float;
 			if (member.flixelType == SPRITEGROUP)
-				maxY = (cast member:FlxSpriteGroup).findMaxY();
+				maxY = (cast member : FlxSpriteGroup).findMaxY();
 			else
 				maxY = member.y + member.height;
 

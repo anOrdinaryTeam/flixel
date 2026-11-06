@@ -357,6 +357,57 @@ class SoundFrontEnd
 	/**
 	 * Changes the volume by a certain amount, also activating the sound tray.
 	 */
+	/**
+	 * Whether volume control by keys is allowed.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var keysAllowed:Bool = true;
+
+	/**
+	 * Takes the volume scale used by Flixel fields and gives the transformed volume.
+	 * Kept for Codename Engine compatibility: this fork already applies a logarithmic
+	 * curve in `changeVolume`, so the result is not fed into the final gain.
+	 * @since CodenameCrew's Flixel
+	 */
+	public dynamic function applySoundCurve(volume:Float):Float
+	{
+		return volume;
+	}
+
+	/**
+	 * Reverses `applySoundCurve`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public dynamic function reverseSoundCurve(curvedVolume:Float):Float
+	{
+		return curvedVolume;
+	}
+
+	/**
+	 * Removes a sound from the default groups and destroys it.
+	 * @since CodenameCrew's Flixel
+	 */
+	@:deprecated("destroySound is deprecated, use FlxSound.destroy() instead.")
+	public function destroySound(sound:FlxSound):Void
+	{
+		if (sound == null) return;
+		defaultMusicGroup.remove(sound);
+		defaultSoundGroup.remove(sound);
+		sound.destroy();
+	}
+
+	/**
+	 * Removes every cached sound from the OpenFL asset cache.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function resetCache():Void
+	{
+		var cache = Std.downcast(openfl.utils.Assets.cache, openfl.utils.AssetCache);
+		if (cache == null || cache.sound == null) return;
+		for (key in [for (k in cache.sound.keys()) k])
+			cache.removeSound(key);
+	}
+
 	public function changeVolume(Amount:Float):Void
 	{
 		muted = false;
@@ -419,7 +470,7 @@ class SoundFrontEnd
 			list.update(elapsed);
 
 		#if FLX_KEYBOARD
-		if (!FlxInputText.globalManager.isTyping)
+		if (keysAllowed && !FlxInputText.globalManager.isTyping)
 		{
 			if (FlxG.keys.anyJustReleased(muteKeys))
 				toggleMuted();

@@ -178,6 +178,27 @@ class FlxCollision
 	}
 
 	/**
+	 * Checks to see if a point in 2D world space overlaps this `FlxSprite` object's
+	 * current displayed pixels. This check is ALWAYS made in screen space, and
+	 * factors in `scale`, `angle`, `offset`, `origin`, and `scrollFactor`.
+	 *
+	 * @param   worldX          The x coordinate of the point given in world space
+	 * @param   worldY          The y coordinate of the point given in world space
+	 * @param   sprite          The FlxSprite to check the point against
+	 * @param   alphaTolerance  The alpha tolerance for with pixels are considered "solid".
+	 *                          Defaults to 1 (anything that is not fully invisible).
+	 * @return  Whether the x/y point overlaps with the sprite, false if not
+	 */
+	@:deprecated("Use sprite.pixelsOverlapPoint instead")
+	public static function pixelPerfectPointCheck(worldX:Int, worldY:Int, target:FlxSprite, alphaTolerance = 1):Bool
+	{
+		if (FlxG.renderTile)
+			target.drawFrame();
+		
+		return target.pixelsOverlapPoint(FlxPoint.weak(worldX, worldY), alphaTolerance);
+	}
+
+	/**
 	 * Creates a "wall" around the given camera which can be used for FlxSprite collision
 	 *
 	 * @param   camera             The FlxCamera to use for the wall bounds (can be FlxG.camera for the current one)
@@ -280,10 +301,10 @@ class FlxCollision
 			return getResult(start.x, start.y);
 
 		// are both points above, below, left or right of the bounds
-		if ((start.y < rect.top    && end.y < rect.top   )
-		||  (start.y > rect.bottom && end.y > rect.bottom)
-		||  (start.x > rect.right  && end.x > rect.right )
-		||  (start.x < rect.left   && end.x < rect.left) )
+		if ((start.y < rect.top && end.y < rect.top)
+			|| (start.y > rect.bottom && end.y > rect.bottom)
+			|| (start.x > rect.right && end.x > rect.right)
+			|| (start.x < rect.left && end.x < rect.left))
 		{
 			return nullResult();
 		}
@@ -309,7 +330,6 @@ class FlxCollision
 		// if left and right intercepts are both above and below, there is no entry
 		if ((leftY < rect.top && rightY < rect.top) || (leftY > rect.bottom && rightY > rect.bottom))
 			return nullResult();
-
 		// if ray moves right
 		else if (start.x < end.x)
 		{

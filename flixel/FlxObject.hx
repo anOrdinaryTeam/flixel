@@ -12,6 +12,7 @@ import flixel.util.FlxDestroyUtil;
 import flixel.util.FlxDirectionFlags;
 import flixel.util.FlxSpriteUtil;
 import flixel.util.FlxStringUtil;
+import flixel.FlxTypes;
 import openfl.display.Graphics;
 
 /**
@@ -92,6 +93,78 @@ class FlxObject extends FlxBasic
 	 * @since 5.6.0
 	 */
 	public static var defaultMoves:Bool = true;
+	
+	/**
+	 * Generic value for "left". Used by `facing`, `allowCollisions`, and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.LEFT` directly.
+	 */
+	@:deprecated("Use LEFT or FlxDirectionFlags.LEFT instead")
+	@:noCompletion
+	public static inline var LEFT = FlxDirectionFlags.LEFT;
+
+	/**
+	 * Generic value for "right". Used by `facing`, `allowCollisions`, and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.RIGHT` directly.
+	 */
+	@:deprecated("Use RIGHT or FlxDirectionFlags.RIGHT instead")
+	@:noCompletion
+	public static inline var RIGHT = FlxDirectionFlags.RIGHT;
+
+	/**
+	 * Generic value for "up". Used by `facing`, `allowCollisions`, and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.UP` directly.
+	 */
+	@:deprecated("Use UP or FlxDirectionFlags.UP instead")
+	@:noCompletion
+	public static inline var UP = FlxDirectionFlags.UP;
+
+	/**
+	 * Generic value for "down". Used by `facing`, `allowCollisions`, and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.DOWN` directly.
+	 */
+	@:deprecated("Use DOWN or FlxDirectionFlags.DOWN instead")
+	@:noCompletion
+	public static inline var DOWN = FlxDirectionFlags.DOWN;
+
+	/**
+	 * Special-case constant meaning no collisions, used mainly by `allowCollisions` and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.NONE` directly.
+	 */
+	@:deprecated("Use NONE or FlxDirectionFlags.NONE instead")
+	@:noCompletion
+	public static inline var NONE = FlxDirectionFlags.NONE;
+
+	/**
+	 * Special-case constant meaning up, used mainly by `allowCollisions` and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.CEILING` directly.
+	 */
+	@:deprecated("Use CEILING or FlxDirectionFlags.CEILING instead")
+	@:noCompletion
+	public static inline var CEILING = FlxDirectionFlags.CEILING;
+
+	/**
+	 * Special-case constant meaning down, used mainly by `allowCollisions` and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.FLOOR` directly.
+	 */
+	@:deprecated("Use FLOOR or FlxDirectionFlags.FLOOR instead")
+	@:noCompletion
+	public static inline var FLOOR = FlxDirectionFlags.FLOOR;
+
+	/**
+	 * Special-case constant meaning only the left and right sides, used mainly by `allowCollisions` and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.WALL` directly.
+	 */
+	@:deprecated("Use WALL or FlxDirectionFlags.WALL instead")
+	@:noCompletion
+	public static inline var WALL = FlxDirectionFlags.WALL;
+
+	/**
+	 * Special-case constant meaning any direction, used mainly by `allowCollisions` and `touching`.
+	 * Note: This exists for backwards compatibility, prefer using `FlxDirectionFlags.ANY` directly.
+	 */
+	@:deprecated("Use ANY or FlxDirectionFlags.ANY instead")
+	@:noCompletion
+	public static inline var ANY = FlxDirectionFlags.ANY;
 	
 	static function allowCollisionDrag(type:CollisionDragType, object1:FlxObject, object2:FlxObject):Bool
 	{
@@ -694,6 +767,15 @@ class FlxObject extends FlxBasic
 	 */
 	public var allowCollisions(default, set) = FlxDirectionFlags.ANY;
 
+	/** DEPRECATED
+	 * Whether this sprite is dragged along with the horizontal movement of objects it collides with
+	 * (makes sense for horizontally-moving platforms in platformers for example).
+	 * 
+	 * Apart from having a weird typo, this has been deprecated for collisionXDrag, which allows more options.
+	 */
+	@:deprecated("Use `collisionXDrag`, instead. Note the corrected spelling: `collis(i)onXDrag")
+	public var collisonXDrag(get, set):Bool;
+
 	/**
 	 * Whether this sprite is dragged along with the horizontal movement of objects it collides with
 	 * (makes sense for horizontally-moving platforms in platformers for example). Use values
@@ -1050,8 +1132,9 @@ class FlxObject extends FlxBasic
 		result.set(x, y);
 		if (pixelPerfectPosition)
 			result.floor();
+		result.subtract(camera.scroll.x * scrollFactor.x, camera.scroll.y * scrollFactor.y);
 
-		return result.subtract(camera.scroll.x * scrollFactor.x, camera.scroll.y * scrollFactor.y);
+		return camera.alterScreenPosition(this, result);
 	}
 
 	/**
@@ -1064,7 +1147,7 @@ class FlxObject extends FlxBasic
 	{
 		if (result == null)
 			result = FlxPoint.get();
-		
+
 		return result.set(x, y);
 	}
 
@@ -1106,6 +1189,8 @@ class FlxObject extends FlxBasic
 		revive();
 	}
 
+	public var forceIsOnScreen:Bool = false;
+
 	/**
 	 * Check and see if this object is currently on screen.
 	 *
@@ -1114,6 +1199,9 @@ class FlxObject extends FlxBasic
 	 */
 	public function isOnScreen(?camera:FlxCamera):Bool
 	{
+		if (forceIsOnScreen)
+			return true;
+
 		if (camera == null)
 			camera = getDefaultCamera();
 
@@ -1221,17 +1309,15 @@ class FlxObject extends FlxBasic
 	{
 		if (ignoreDrawDebug)
 			return;
-		
+
 		final drawPath = path != null && !path.ignoreDrawDebug;
-		
+
 		for (camera in getCamerasLegacy())
 		{
 			drawDebugOnCamera(camera);
-			
+
 			if (drawPath)
-			{
 				path.drawDebugOnCamera(camera);
-			}
 		}
 	}
 
@@ -1331,7 +1417,7 @@ class FlxObject extends FlxBasic
 
 		return _rect;
 	}
-	
+
 	/**
 	 * Calculates the smallest globally aligned bounding box that encompasses this
 	 * object's width and height, at its current rotation.
@@ -1345,7 +1431,7 @@ class FlxObject extends FlxBasic
 	{
 		if (newRect == null)
 			newRect = FlxRect.get();
-		
+
 		newRect.set(x, y, width, height);
 		return newRect.getRotatedBounds(angle, null, newRect);
 	}
@@ -1460,6 +1546,19 @@ class FlxObject extends FlxBasic
 		return allowCollisions = value;
 	}
 
+	@:noCompletion
+	function get_collisonXDrag():Bool
+	{
+		return collisionXDrag == IMMOVABLE;
+	}
+
+	@:noCompletion
+	function set_collisonXDrag(value:Bool):Bool
+	{
+		collisionXDrag = value ? IMMOVABLE : NEVER;
+		return value;
+	}
+
 	#if FLX_DEBUG
 	@:noCompletion
 	function set_debugBoundingBoxColorSolid(color:FlxColor)
@@ -1498,7 +1597,7 @@ class FlxObject extends FlxBasic
 /**
  * Determines when to apply collision drag to one object that collided with another.
  */
-enum abstract CollisionDragType(Int)
+enum abstract CollisionDragType(ByteUInt)
 {
 	/** Never drags on colliding objects. */
 	var NEVER = 0;

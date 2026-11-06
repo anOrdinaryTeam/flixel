@@ -405,7 +405,7 @@ class FlxBasePreloader extends DefaultPreloader
 }
 
 // This is a slightly trimmed down version of the NMEPreloader present in older OpenFL versions
-private class DefaultPreloader extends Sprite
+class DefaultPreloader extends Sprite
 {
 	public function new()
 	{

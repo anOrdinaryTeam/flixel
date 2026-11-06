@@ -35,7 +35,7 @@ import flixel.FlxState;
 abstract NextState(Dynamic)
 {
 	@:from
-	@:deprecated("use `MyState.new` or `()->new MyState()` instead of `new MyState()`)")
+	// @:deprecated("use `MyState.new` or `()->new MyState()` instead of `new MyState()`)") // wait until 6.0.0
 	public static function fromState(state:FlxState):NextState
 	{
 		return cast state;
@@ -47,11 +47,23 @@ abstract NextState(Dynamic)
 		return cast func;
 	}
 	
+	@:allow(flixel.FlxG)
+	inline function isInstance():Bool
+	{
+		return this is FlxState;
+	}
+	
+	@:allow(flixel.FlxG)
+	inline function isClass():Bool
+	{
+		return this is Class;
+	}
+	
 	public function createInstance():FlxState
 	{
-		if (this is FlxState)
+		if (isInstance())
 			return cast this;
-		else if (this is Class)
+		else if (isClass())
 			return Type.createInstance(this, []);
 		else
 			return cast this();
@@ -59,13 +71,18 @@ abstract NextState(Dynamic)
 	
 	public function getConstructor():()->FlxState
 	{
-		if (this is FlxState)
+		if (isInstance())
 		{
 			return function ():FlxState
 			{
 				return cast Type.createInstance(Type.getClass(this), []);
 			}
 		}
+		else if (isClass())
+			return function ():FlxState
+			{
+				return cast Type.createInstance(this, []);
+			}
 		else
 			return cast this;
 	}

@@ -44,7 +44,7 @@ class FlxFrame implements IFlxDestroyable
 	 * @param suffix  Everything in the frames' name *after* the order
 	 * @param warn    Whether to warn on invalid names
 	 */
-	public static inline function sortFrames(frames:Array<FlxFrame>, prefix:String, ?suffix:String, warn = true):Void
+	public static inline function sortFrames(frames:Array<FlxFrame>, prefix:String, ?suffix:String, warn = false):Void
 	{
 		sortHelper(frames, prefix.length, suffix == null ? 0 : suffix.length, warn);
 	}
@@ -59,12 +59,12 @@ class FlxFrame implements IFlxDestroyable
 	 * @param suffix  Everything in the frames' name *after* the order
 	 * @param warn    Whether to warn on invalid names
 	 */
-	public static function sort(frames:Array<FlxFrame>, prefixLength:Int, suffixLength:Int, warn = true):Void
+	public static function sort(frames:Array<FlxFrame>, prefixLength:Int, suffixLength:Int, warn = false):Void
 	{
 		sortHelper(frames, prefixLength, suffixLength, warn);
 	}
 	
-	static function sortHelper(frames:Array<FlxFrame>, prefixLength:Int, suffixLength:Int, warn = true):Void
+	static function sortHelper(frames:Array<FlxFrame>, prefixLength:Int, suffixLength:Int, warn = false):Void
 	{
 		if (warn)
 		{
@@ -761,12 +761,28 @@ enum abstract FlxFrameAngle(Int) from Int to Int
  * `bottom`. This is for optimization reasons, to reduce arithmetic when drawing vertices
  */
 @:forward(put)
-abstract FlxUVRect(FlxRect) from FlxRect
+abstract FlxUVRect(FlxRect) from FlxRect to FlxRect
 {
 	@:to public inline function toIFlxPooled():flixel.util.FlxPool.IFlxPooled
 	{
 		return this;
 	}
+
+	public var x(get, set):Float;
+	inline function get_x():Float { return this.x; }
+	inline function set_x(value):Float { return this.x = value; }
+
+	public var y(get, set):Float;
+	inline function get_y():Float { return this.y; }
+	inline function set_y(value):Float { return this.y = value; }
+
+	public var width(get, set):Float;
+	inline function get_width():Float { return this.width; }
+	inline function set_width(value):Float { return this.width = value; }
+
+	public var height(get, set):Float;
+	inline function get_height():Float { return this.height; }
+	inline function set_height(value):Float { return this.height = value; }
 
 	public var left(get, set):Float;
 	inline function get_left():Float { return this.x; }
@@ -815,6 +831,11 @@ abstract FlxUVRect(FlxRect) from FlxRect
 			LabelValuePair.weak("r", right),
 			LabelValuePair.weak("b", bottom)
 		]);
+	}
+
+	public inline function put()
+	{
+		this.put();
 	}
 	
 	public static function get(l = 0.0, t = 0.0, r = 0.0, b = 0.0)

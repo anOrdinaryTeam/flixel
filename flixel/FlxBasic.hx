@@ -1,9 +1,10 @@
 package flixel;
 
 import flixel.group.FlxContainer;
-import flixel.util.FlxDestroyUtil;
+import flixel.util.FlxDestroyUtil.IFlxDestroyable;
 import flixel.util.FlxStringUtil;
 import flixel.group.IFlxGroupable;
+import flixel.FlxTypes;
 
 /**
  * This is a useful "generic" Flixel object. Both `FlxObject` and
@@ -217,7 +218,10 @@ class FlxBasic implements IFlxDestroyable
 	 * object, otherwise the container's camera is used, or the container's container and so on.
 	 * If there is no container, say, if this is inside `FlxGroups` rather than a `FlxContainer`
 	 * then `FlxG.camera` is returned.
-	 * @since 5.7.0
+	 * 
+	 * Theres a misleading documentation where this is marked as since 5.7.0 regardless only
+	 * appearing in 6.0.0 and after, so libraries that uses this doesn't work for 5.9.0.
+	 * @since 6.0.0
 	 */
 	public function getDefaultCamera():FlxCamera
 	{
@@ -290,7 +294,7 @@ class FlxBasic implements IFlxDestroyable
 /**
  * Types of flixel objects - mainly for collisions.
  */
-enum abstract FlxType(Int)
+enum abstract FlxType(ByteUInt)
 {
 	var NONE = 0;
 	var OBJECT = 1;

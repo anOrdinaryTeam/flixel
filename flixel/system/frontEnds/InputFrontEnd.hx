@@ -23,8 +23,10 @@ class InputFrontEnd
 	/**
 	 * Add an input to the system
 	 */
+	#if FLX_GENERIC
 	@:generic
 	@:deprecated("add is deprecated, use addUniqueType")
+	#end
 	public inline function add<T:IFlxInputManager>(input:T):T
 	{
 		return addUniqueType(input);
@@ -67,7 +69,9 @@ class InputFrontEnd
 	 * @param   Input  The input to remove
 	 * @return  Bool indicating whether it was removed or not
 	 */
+	#if FLX_GENERIC
 	@:generic
+	#end
 	public inline function remove<T:IFlxInputManager>(input:T):Bool
 	{
 		return list.remove(input);
@@ -81,7 +85,9 @@ class InputFrontEnd
 	 * @param   destroyOld  Whether to destroy the old input
 	 * @return  If successful returns `newInput`. Otherwise returns `null`.
 	 */
+	#if FLX_GENERIC
 	@:generic
+	#end
 	public function replace<T:IFlxInputManager>(oldInput:T, newInput:T, destroyOld = false):Null<T>
 	{
 		final index = list.indexOf(oldInput);

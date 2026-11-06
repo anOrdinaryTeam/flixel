@@ -1,18 +1,18 @@
 package flixel.system.macros;
 
 import haxe.io.Path;
+#if macro
 import haxe.macro.Compiler;
 import haxe.macro.Context;
 import haxe.macro.Expr.Position;
-
-using StringTools;
-#if (flixel_addons >= "3.2.2")
+//#if (flixel_addons >= "3.2.2")
 import flixel.addons.system.macros.FlxAddonDefines;
+//#end
 #end
 
+using StringTools;
 
-
-private enum UserDefines
+enum UserDefines
 {
 	FLX_NO_MOUSE_ADVANCED;
 	FLX_NO_GAMEPAD;
@@ -60,11 +60,11 @@ private enum UserDefines
 	 * If this flag is set to any string, that is used for the file extension
 	 */
 	FLX_DEFAULT_SOUND_EXT;
-	
 	/**
 	 * Used to make the debug windows bigger
 	 */
 	FLX_DEBUGGER_SCALE;
+	FLX_NO_GENERIC;
 }
 
 /**
@@ -72,7 +72,7 @@ private enum UserDefines
  * are shortened into a single define to avoid the redundancy
  * that comes with using them frequently.
  */
-private enum HelperDefines
+enum HelperDefines
 {
 	FLX_GAMEPAD;
 	FLX_MOUSE;
@@ -82,6 +82,7 @@ private enum HelperDefines
 	FLX_FOCUS_LOST_SCREEN;
 	FLX_DEBUG;
 	FLX_STEAMWRAP;
+	FLX_CNE_FORK;
 
 	FLX_MOUSE_ADVANCED;
 	FLX_NATIVE_CURSOR;
@@ -114,10 +115,14 @@ private enum HelperDefines
 	/** The normalized, absolute path of `FLX_CUSTOM_ASSETS_DIRECTORY`, used internally */
 	FLX_CUSTOM_ASSETS_DIRECTORY_ABS;
 	FLX_NO_DEFAULT_SOUND_EXT;
+	/** Enables audio streaming related APIs */
+	FLX_STREAM_SOUND;
+	FLX_GENERIC;
 }
 
 class FlxDefines
 {
+	#if macro
 	public static function run()
 	{
 		#if !display
@@ -221,6 +226,8 @@ class FlxDefines
 			define(FLX_HEALTH_NOT_DEFINED);
 			define(FLX_HEALTH);
 		}
+
+		defineInversion(FLX_NO_GENERIC, FLX_GENERIC);
 	}
 
 	static function defineHelperDefines()
@@ -304,6 +311,11 @@ class FlxDefines
 		}
 		else // define boolean inversion
 			define(FLX_STANDARD_ASSETS_DIRECTORY);
+
+		#if (lime_funkin || lime_vorbis)
+		define(FLX_STREAM_SOUND);
+		#end
+		define(FLX_CNE_FORK);
 	}
 
 	static function defineInversion(userDefine:UserDefines, invertedDefine:HelperDefines)
@@ -350,4 +362,5 @@ class FlxDefines
 	{
 		Context.fatalError(message, pos);
 	}
+	#end
 }

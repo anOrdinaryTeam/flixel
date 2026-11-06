@@ -55,6 +55,11 @@ class FlxBar extends FlxSprite
 	public var percent(get, set):Float;
 
 	/**
+	 * The percentage of how full the bar is (a value between 0 and 100)
+	 */
+	public var floorPercent(get, never):Int;
+
+	/**
 	 * The current value - must always be between min and max
 	 */
 	@:isVar
@@ -86,6 +91,11 @@ class FlxBar extends FlxSprite
 	 * @since 4.1.0
 	 */
 	public var numDivisions(default, set):Int = 100;
+
+	/**
+	 * Determines whenever numDivisions will make stuff blocky
+	 */
+	public var continuous:Bool = false;
 
 	/**
 	 * This function will be called when value will hit it's minimum
@@ -214,6 +224,7 @@ class FlxBar extends FlxSprite
 		_filledBarPoint = null;
 
 		parent = null;
+		positionOffset = FlxDestroyUtil.put(positionOffset);
 		emptyCallback = null;
 		filledCallback = null;
 
@@ -762,16 +773,20 @@ class FlxBar extends FlxSprite
 		var fraction:Float = (value - min) / range;
 		var percent:Float = fraction * _maxPercent;
 		var maxScale:Float = (_fillHorizontal) ? barWidth : barHeight;
+		var interval:Float = continuous ? {
+			fraction * maxScale;
+		} : {
 		var scaleInterval:Float = maxScale / numDivisions;
-		var interval:Float = Math.round(Std.int(fraction * maxScale / scaleInterval) * scaleInterval);
+			Math.round(Std.int(fraction * maxScale / scaleInterval) * scaleInterval);
+			}
 
 		if (_fillHorizontal)
 		{
-			_filledBarRect.width = Std.int(interval);
+			_filledBarRect.width = floorFunc(interval);
 		}
 		else
 		{
-			_filledBarRect.height = Std.int(interval);
+			_filledBarRect.height = floorFunc(interval);
 		}
 
 		if (percent > 0)
@@ -790,20 +805,20 @@ class FlxBar extends FlxSprite
 					_filledBarPoint.x = barWidth - _filledBarRect.width;
 
 				case HORIZONTAL_INSIDE_OUT:
-					_filledBarRect.x = Std.int((barWidth / 2) - (_filledBarRect.width / 2));
-					_filledBarPoint.x = Std.int((barWidth / 2) - (_filledBarRect.width / 2));
+					_filledBarRect.x = floorFunc((barWidth / 2) - (_filledBarRect.width / 2));
+					_filledBarPoint.x = floorFunc((barWidth / 2) - (_filledBarRect.width / 2));
 
 				case HORIZONTAL_OUTSIDE_IN:
-					_filledBarRect.width = Std.int(maxScale - interval);
-					_filledBarPoint.x = Std.int((barWidth - _filledBarRect.width) / 2);
+					_filledBarRect.width = floorFunc(maxScale - interval);
+					_filledBarPoint.x = floorFunc((barWidth - _filledBarRect.width) / 2);
 
 				case VERTICAL_INSIDE_OUT:
-					_filledBarRect.y = Std.int((barHeight / 2) - (_filledBarRect.height / 2));
-					_filledBarPoint.y = Std.int((barHeight / 2) - (_filledBarRect.height / 2));
+					_filledBarRect.y = floorFunc((barHeight / 2) - (_filledBarRect.height / 2));
+					_filledBarPoint.y = floorFunc((barHeight / 2) - (_filledBarRect.height / 2));
 
 				case VERTICAL_OUTSIDE_IN:
-					_filledBarRect.height = Std.int(maxScale - interval);
-					_filledBarPoint.y = Std.int((barHeight - _filledBarRect.height) / 2);
+					_filledBarRect.height = floorFunc(maxScale - interval);
+					_filledBarPoint.y = floorFunc((barHeight - _filledBarRect.height) / 2);
 			}
 
 			if (FlxG.renderBlit)
@@ -814,11 +829,8 @@ class FlxBar extends FlxSprite
 			{
 				if (frontFrames != null)
 				{
-					_filledFlxRect.copyFromFlash(_filledBarRect).round();
-					if (Std.int(percent) > 0)
-					{
+					_filledFlxRect.copyFromFlash(_filledBarRect); // .round();
 						_frontFrame = frontFrames.frame.clipTo(_filledFlxRect, _frontFrame);
-					}
 				}
 			}
 		}
@@ -890,7 +902,7 @@ class FlxBar extends FlxSprite
 					_matrix.ty = Math.floor(_matrix.ty);
 				}
 
-				camera.drawPixels(_frontFrame, _matrix, colorTransform, blend, antialiasing, shader, blendTarget);
+				camera.drawPixels(_frontFrame, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget);
 			}
 		}
 	}
@@ -920,6 +932,16 @@ class FlxBar extends FlxSprite
 	}
 
 	function get_percent():Float
+	{
+		if (value > max)
+		{
+			return _maxPercent;
+		}
+
+		return ((value - min) / range) * _maxPercent;
+	}
+
+	function get_floorPercent():Int
 	{
 		if (value > max)
 		{
@@ -1030,6 +1052,19 @@ class FlxBar extends FlxSprite
 		}
 		return value;
 	}
+
+	inline function floorFunc(x:Float):Float
+	{
+		return continuous ? x : Std.int(x);
+	}
+
+	@:noCompletion public var unbounded(get, set):Bool;
+
+	@:noCompletion inline function get_unbounded()
+		return continuous;
+
+	@:noCompletion inline function set_unbounded(value:Bool):Bool
+		return continuous = value;
 }
 
 enum FlxBarFillDirection

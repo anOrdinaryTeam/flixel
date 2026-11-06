@@ -25,6 +25,18 @@ class FlxGraphic implements IFlxDestroyable
 	public static var defaultPersist:Bool = false;
 
 	/**
+	 * The default value for the `destroyOnNoUse` variable at creation
+	 * @since	FunkinCrew's Flixel
+	 */
+	public static var defaultDestroyOnNoUse:Bool = true;
+
+	/**
+	 * The default shader for FlxGraphic.
+	 * @since	CodenameCrew's Flixel
+	 */
+	public static var defaultShader:Null<FlxShader> = new FlxShader();
+
+	/**
 	 * Creates and caches FlxGraphic object from openfl.Assets key string.
 	 *
 	 * @param   Source   `openfl.Assets` key string. For example: `"assets/image.png"`.
@@ -57,6 +69,7 @@ class FlxGraphic implements IFlxDestroyable
 
 		graphic = createGraphic(bitmap, key, Unique);
 		graphic.assetsKey = Source;
+		graphic.destroyOnNoUse = false; // Don't destroy immediately on no use for assets
 		return graphic;
 	}
 
@@ -306,7 +319,7 @@ class FlxGraphic implements IFlxDestroyable
 	 * Whether this `FlxGraphic` should be destroyed when `useCount` becomes zero (defaults to `true`).
 	 * Has no effect when `persist` is `true`.
 	 */
-	public var destroyOnNoUse(default, set):Bool = true;
+	public var destroyOnNoUse(default, set):Bool = defaultDestroyOnNoUse;
 
 	/**
 	 * Whether the `BitmapData` of this graphic object has been loaded or not.
@@ -337,7 +350,7 @@ class FlxGraphic implements IFlxDestroyable
 	/**
 	 * Usage counter for this `FlxGraphic` object.
 	 */
-	public var useCount(default, null):Int = 0;
+	public var useCount(default, set):Int = 0;
 
 	/**
 	 * `FlxImageFrame` object for the whole bitmap.
@@ -378,6 +391,9 @@ class FlxGraphic implements IFlxDestroyable
 	 */
 	public var trackingInfo:String = "";
 	#end
+
+	@:allow(flixel.system.frontEnds.BitmapFrontEnd)
+	var mustDestroy:Bool = false;
 	
 	/**
 	 * Internal var holding `FlxImageFrame` for the whole bitmap of this graphic.
@@ -414,7 +430,7 @@ class FlxGraphic implements IFlxDestroyable
 		frameCollectionTypes = new Array<FlxFrameCollectionType>();
 		this.bitmap = bitmap;
 
-		shader = new FlxShader();
+		shader = (defaultShader != null) ? defaultShader : new FlxShader();
 	}
 
 	/**
@@ -507,6 +523,11 @@ class FlxGraphic implements IFlxDestroyable
 		{
 			collections = new Array<FlxFramesCollection>();
 			frameCollections.set(type, collections);
+
+			#if EXPERIMENTAL_FLXGRAPHIC_DESTROY_FIX
+			if (!frameCollectionTypes.contains(type))
+				frameCollectionTypes.push(type);
+			#end
 		}
 		return collections;
 	}
@@ -559,6 +580,12 @@ class FlxGraphic implements IFlxDestroyable
 	{
 		return assetsClass != null || assetsKey != null;
 	}
+
+	inline function set_useCount(v:Int):Int
+	{
+		if (useCount > (useCount = v)) checkUseCount();
+		return v;
+	}
 	
 	inline function get_canBeDumped():Bool
 	{
@@ -567,19 +594,19 @@ class FlxGraphic implements IFlxDestroyable
 	
 	public function incrementUseCount()
 	{
-		useCount++;
+		@:bypassAccessor useCount++;
 	}
 	
 	public function decrementUseCount()
 	{
-		useCount--;
+		@:bypassAccessor useCount--;
 		
 		checkUseCount();
 	}
 	
 	function checkUseCount()
 	{
-		if (useCount <= 0 && destroyOnNoUse && !persist)
+		if (!FlxG.bitmap.__doNotDelete && !mustDestroy && useCount <= 0 && destroyOnNoUse && key != null && !persist)
 			FlxG.bitmap.remove(this);
 	}
 

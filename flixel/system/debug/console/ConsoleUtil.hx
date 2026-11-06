@@ -182,7 +182,7 @@ class ConsoleUtil
 }
 
 #if (polymod || hscript)
-private class Interp extends HScriptInterp
+class Interp extends HScriptInterp
 {
 	public function getGlobals():Array<String>
 	{

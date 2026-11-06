@@ -5,6 +5,7 @@ import flixel.graphics.frames.FlxFrame;
 import flixel.math.FlxPoint;
 import flixel.math.FlxRect;
 import flixel.system.FlxAssets;
+import flixel.util.FlxArrayUtil;
 import flixel.util.FlxColor;
 import openfl.Assets;
 import openfl.display.BitmapData;
@@ -39,9 +40,19 @@ class BitmapFrontEnd
 	@:allow(flixel.system.frontEnds.BitmapLogFrontEnd)
 	var _cache:Map<String, FlxGraphic>;
 
+	var _destroyableCache:Map<String, FlxGraphic>;
+
 	var _whitePixel:FlxFrame;
 
 	var _lastUniqueKeyIndex:Int = 0;
+
+	// CNE Deprecated Variables, soon to be removed?
+	@:allow(flixel.graphics.FlxGraphic)
+	var __doNotDelete:Bool = false;
+	var __countCache:Array<FlxGraphic> = [];
+	var __cacheCopy(get, set):Map<String, FlxGraphic>;
+	function get___cacheCopy():Map<String, FlxGraphic> return _destroyableCache;
+	function set___cacheCopy(v:Map<String, FlxGraphic>):Map<String, FlxGraphic> return _destroyableCache = v;
 
 	public function new()
 	{
@@ -68,7 +79,7 @@ class BitmapFrontEnd
 	 */
 	public inline function checkCache(key:String):Bool
 	{
-		return get(key) != null;
+		return _cache.get(key) != null;
 	}
 
 	/**
@@ -125,6 +136,7 @@ class BitmapFrontEnd
 			removeByKey(graphic.key);
 			_cache.set(graphic.key, graphic);
 		}
+		graphic.mustDestroy = false;
 		return graphic;
 	}
 
@@ -136,7 +148,9 @@ class BitmapFrontEnd
 	 */
 	public function get(key:String):FlxGraphic
 	{
-		return _cache.get(key);
+		var graphic = _cache.get(key);
+		if (graphic != null) graphic.mustDestroy = false;
+		return graphic;
 	}
 
 	/**
@@ -276,7 +290,7 @@ class BitmapFrontEnd
 
 	public function removeIfNoUse(graphic:FlxGraphic):Void
 	{
-		if (graphic != null && graphic.useCount == 0 && !graphic.persist)
+		if (graphic != null && graphic.useCount <= 0 && !graphic.persist)
 			remove(graphic);
 	}
 
@@ -292,13 +306,89 @@ class BitmapFrontEnd
 			return;
 		}
 
-		for (key in _cache.keys())
+		var lookup:Array<FlxGraphic> = [], keys:Array<String> = [];
+
+		if (_destroyableCache != null)
 		{
-			var obj = get(key);
-			if (obj != null && !obj.persist && obj.useCount <= 0)
+			for (key => obj in _destroyableCache)
 			{
-				removeKey(key);
+				if (obj.isDestroyed) _cache.remove(key);
+				else if (obj != _cache.get(key)) obj.destroy();
+				else if (obj.mustDestroy)
+				{
+					if (obj.persist) obj.mustDestroy = false;
+					else if (obj.useCount <= 0)
+					{
+						if (obj.assetsKey != null) Assets.cache.removeBitmapData(obj.assetsKey);
+						_cache.remove(key);
+						obj.destroy();
+					}
+					else
+					{
+						lookup.push(obj);
+						keys.push(key);
+					}
+				}
+			}
+
+			_destroyableCache = [];
+		}
+		else
+		{
+			for (key => obj in _cache)
+			{
+				if (obj == null || obj.isDestroyed) _cache.remove(key);
+				else if (!obj.persist)
+				{
+					if (obj.useCount <= 0)
+					{
+						if (obj.assetsKey != null) Assets.cache.removeBitmapData(obj.assetsKey);
+						_cache.remove(key);
+						obj.destroy();
+					}
+					else
+					{
+						lookup.push(obj);
+						keys.push(key);
+					}
+				}
+			}
+		}
+
+		var i = lookup.length, obj:FlxGraphic;
+		while (i-- > 0)
+		{
+			if ((obj = lookup[i]).useCount <= 0)
+			{
+				if (obj.assetsKey != null) Assets.cache.removeBitmapData(obj.assetsKey);
+				_cache.remove(keys[i]);
 				obj.destroy();
+
+				FlxArrayUtil.swapAndPop(lookup, i);
+				FlxArrayUtil.swapAndPop(keys, i);
+				i = lookup.length;
+			}
+		}
+
+		for (obj in lookup) obj.mustDestroy = false;
+	}
+
+	/**
+	 * Maps the entire cache as destroyable, aka must be cleared.
+	 */
+	public function mapCacheAsDestroyable()
+	{
+		if (_cache == null) return;
+
+		_destroyableCache = [];
+
+		for (key => obj in _cache)
+		{
+			if (obj == null) _cache.remove(key);
+			else
+			{
+				obj.mustDestroy = true;
+				_destroyableCache.set(key, obj);
 			}
 		}
 	}
@@ -323,13 +413,14 @@ class BitmapFrontEnd
 			return;
 		}
 
-		for (key in _cache.keys())
+		for (key => obj in _cache)
 		{
-			var obj = get(key);
-			removeKey(key);
-
+			_cache.remove(key);
 			if (obj != null)
+			{
+				if (obj.assetsKey != null) Assets.cache.removeBitmapData(obj.assetsKey);
 				obj.destroy();
+			}
 		}
 	}
 
@@ -339,12 +430,14 @@ class BitmapFrontEnd
 	 */
 	public function clearUnused():Void
 	{
-		for (key in _cache.keys())
+		for (key => obj in _cache)
 		{
-			var obj = _cache.get(key);
-			if (obj != null && obj.useCount <= 0 && !obj.persist && obj.destroyOnNoUse)
+			if (obj == null || obj.isDestroyed) _cache.remove(key);
+			else if (!obj.persist && obj.destroyOnNoUse && obj.useCount <= 0)
 			{
-				removeByKey(key);
+				if (obj.assetsKey != null) Assets.cache.removeBitmapData(obj.assetsKey);
+				_cache.remove(key);
+				obj.destroy();
 			}
 		}
 	}

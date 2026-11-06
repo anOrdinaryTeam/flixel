@@ -154,6 +154,11 @@ class FlxG
 	 */
 	@:allow(flixel.FlxGame.updateElapsed)
 	public static var elapsed(default, null):Float = 0;
+	/**
+	 * Represents the amount of time in seconds that passed since last frame. (Ignoring timescale)
+	 */
+	@:allow(flixel.FlxGame.updateElapsed)
+	public static var rawElapsed(default, null):Float = 0;
 
 	/**
 	 * Represents the amount of time in seconds that passed since last frame. (Ignoring timescale)
@@ -330,6 +335,18 @@ class FlxG
 	 */
 	public static var plugins(default, null):PluginFrontEnd;
 
+	/**
+	 * Whenever rendering with antialiasing should be enabled. If `false`, no sprite will render with antialiasing.
+	 */
+	public static var enableAntialiasing:Bool = true;
+
+	/**
+	 * Should it construct states before switching,
+	 * This makes FlxState.switchTo fully functionable again / reverts switchState functionality to Flixel 5.5.0 and below.
+	 * @since	CodenameCrew's Flixel
+	 */
+	public static var constructStateBeforeSwitch:Bool = true;
+
 	public static var initialWidth(default, null):Int = 0;
 	public static var initialHeight(default, null):Int = 0;
 
@@ -393,13 +410,41 @@ class FlxG
 	public static inline function switchState(nextState:NextState):Void
 	{
 		final stateOnCall = FlxG.state;
-		state.startOutro(function()
+
+		var useSwitchTo = nextState.isInstance();
+		if (!useSwitchTo && constructStateBeforeSwitch)
 		{
-			if (FlxG.state == stateOnCall)
-				game._nextState = nextState;
-			else
-				FlxG.log.warn("`onOutroComplete` was called after the state was switched. This will be ignored");
-		});
+			nextState = nextState.createInstance();
+			useSwitchTo = true;
+		}
+
+		if (!useSwitchTo || canSwitchTo(cast nextState))
+		{
+			state.startOutro(function()
+			{
+				if (FlxG.state == stateOnCall)
+					game._nextState = nextState;
+				else
+					FlxG.log.warn("`onOutroComplete` was called after the state was switched. This will be ignored");
+			});
+		}
+	}
+	
+	/**
+	 * Calls state.switchTo(nextState) without a deprecation warning.
+	 * This will be removed in Flixel 6.0.0
+	 * @since 5.6.0
+	 */
+	@:noCompletion
+	@:haxe.warning("-WDeprecated")
+	static function canSwitchTo(nextState:FlxState)
+	{
+		#if (haxe < version("4.3.0"))
+		// Use reflection because @:haxe.warning("-WDeprecated") doesn't work until haxe 4.3
+		return Reflect.callMethod(state, Reflect.field(state, 'switchTo'), [nextState]);
+		#else
+		return state.switchTo(nextState);
+		#end
 	}
 
 	/**
@@ -408,7 +453,13 @@ class FlxG
 	 */
 	public static inline function resetState():Void
 	{
-		switchState(state._constructor);
+		if (state == null || state._constructor == null)
+			FlxG.log.error("FlxG.resetState was called while switching states");
+		else if(!state._constructor.isInstance())
+			switchState(state._constructor);
+		else
+			// create new instance here so that state.switchTo is called (for backwards compatibility)
+			switchState(Type.createInstance(Type.getClass(state), []));
 	}
 
 	/**

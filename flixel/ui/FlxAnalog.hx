@@ -198,6 +198,7 @@ class FlxAnalog extends FlxSpriteContainer
 		super.destroy();
 
 		_zone = FlxDestroyUtil.put(_zone);
+		_point = FlxDestroyUtil.put(_point);
 
 		_analogs.remove(this);
 		onUp = null;

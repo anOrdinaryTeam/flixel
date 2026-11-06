@@ -3,8 +3,9 @@ package flixel;
 import flixel.graphics.tile.FlxDrawBaseItem;
 import flixel.system.FlxSplash;
 import flixel.util.FlxArrayUtil;
-import flixel.util.FlxDestroyUtil;
 import flixel.util.typeLimit.NextState;
+import openfl.filters.ShaderFilter;
+import flixel.system.FlxAssets.FlxShader;
 import openfl.Assets;
 import openfl.Lib;
 import openfl.display.Sprite;
@@ -12,6 +13,9 @@ import openfl.display.StageAlign;
 import openfl.display.StageScaleMode;
 import openfl.events.Event;
 import openfl.filters.BitmapFilter;
+import openfl.geom.Matrix;
+import openfl.geom.Rectangle;
+import flixel.util.FlxDestroyUtil;
 #if desktop
 import openfl.events.FocusEvent;
 #end
@@ -168,6 +172,10 @@ class FlxGame extends Sprite
 	 */
 	var _nextState:NextState;
 
+	var _requestedState(get, set):NextState;
+	inline function get__requestedState() return _nextState;
+	inline function set__requestedState(v) return _nextState = v;
+
 	/**
 	 * A flag for keeping track of whether a game reset was requested or not.
 	 */
@@ -246,6 +254,43 @@ class FlxGame extends Sprite
 		_initialState = (initialState == null) ? FlxState.new : initialState.toNextState();
 
 		addEventListener(Event.ADDED_TO_STAGE, create);
+	}
+
+	/**
+	 * Adds a FlxShader as a filter to the FlxGame
+	 * @param shader Shader to add
+	 * @return ShaderFilter
+	 */
+	public function addShader(shader:FlxShader)
+	{
+		var filter:ShaderFilter = null;
+		if (_filters == null) _filters = [];
+		_filters.push(filter = new ShaderFilter(shader));
+		return filter;
+	}
+
+	/**
+	 * Removes a FlxShader's ShaderFilter from the FlxGame.
+	 * @param shader Shader to remove
+	 * @return Whenever the shader has been successfully removed or not.
+	 */
+	public function removeShader(shader:FlxShader):Bool
+	{
+		if (_filters == null)
+			_filters = [];
+		for (f in _filters)
+		{
+			if (f is ShaderFilter)
+			{
+				var sf = cast(f, ShaderFilter);
+				if (sf.shader == shader)
+				{
+					_filters.remove(f);
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -538,12 +583,13 @@ class FlxGame extends Sprite
 		FlxRandom.updateStateSeed();
 		#end
 
+		// we mark the entire cache as destroyable. while the cache is marked as destroyable, nothing is immediately removed, to make loading times faster
+		FlxG.bitmap.mapCacheAsDestroyable();
+
 		// Destroy the old state (if there is an old state)
 		if (_state != null)
 			_state.destroy();
 
-		// we need to clear bitmap cache only after previous state is destroyed, which will reset useCount for FlxGraphic objects
-		FlxG.bitmap.clearCache();
 
 		// Finally assign and create the new state
 		_state = _nextState.createInstance();
@@ -564,6 +610,10 @@ class FlxGame extends Sprite
 		debugger.console.registerObject("state", _state);
 		#end
 
+		// we remove the destroyable attribute from the cache, and remove all bitmaps that are unused.
+		FlxG.bitmap.clearCache();
+
+		_state.createPost();
 		FlxG.signals.postStateSwitch.dispatch();
 	}
 
@@ -645,8 +695,7 @@ class FlxGame extends Sprite
 			switchState();
 
 		#if FLX_DEBUG
-		if (FlxG.debugger.visible)
-			ticks = getTicks();
+		final updateTicks = getTicks();
 		#end
 
 		updateElapsed(deltaTime);
@@ -666,7 +715,7 @@ class FlxGame extends Sprite
 		FlxG.signals.postUpdate.dispatch();
 
 		#if FLX_DEBUG
-		debugger.stats.flixelUpdate(getTicks() - ticks);
+		debugger.stats.flixelUpdate(getTicks() - updateTicks);
 		#end
 
 		#if FLX_POINTER_INPUT
@@ -794,8 +843,7 @@ class FlxGame extends Sprite
 			return;
 
 		#if FLX_DEBUG
-		if (FlxG.debugger.visible)
-			ticks = getTicks();
+		final drawTicks = getTicks();
 		#end
 
 		FlxG.signals.preDraw.dispatch();
@@ -830,7 +878,7 @@ class FlxGame extends Sprite
 		FlxG.signals.postDraw.dispatch();
 
 		#if FLX_DEBUG
-		debugger.stats.flixelDraw(getTicks() - ticks);
+		debugger.stats.flixelDraw(getTicks() - drawTicks);
 		#end
 	}
 
@@ -844,6 +892,15 @@ class FlxGame extends Sprite
 		// expensive, only call if necessary
 		return Lib.getTimer();
 	}
+
+	inline function overridenGetOpenFLBounds(r:Rectangle, m:Matrix)
+	{
+		r.setTo(-x, -y, FlxG.stage.stageWidth, FlxG.stage.stageHeight);
+	}
+
+	override function __getBounds(r:Rectangle, m:Matrix) overridenGetOpenFLBounds(r, m);
+	override function __getFilterBounds(r:Rectangle, m:Matrix) overridenGetOpenFLBounds(r, m);
+	override function __getRenderBounds(r:Rectangle, m:Matrix) overridenGetOpenFLBounds(r, m);
 }
 
 private class FlxIntroSplash extends FlxSplash

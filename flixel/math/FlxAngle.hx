@@ -46,17 +46,17 @@ class FlxAngle
 		return Context.makeExpr(table, Context.currentPos());
 	}
 
-	#if !macro
 	/**
 	 * Convert radians to degrees by multiplying it with this value.
 	 */
-	public static var TO_DEG(get, never):Float;
+	public static inline final TO_DEG:Float = 57.29577951308232; // 180 / Math.PI;
 
 	/**
 	 * Convert degrees to radians by multiplying it with this value.
 	 */
-	public static var TO_RAD(get, never):Float;
+	public static inline final TO_RAD:Float = 0.017453292519943295; // Math.PI / 180;
 
+	#if !macro
 	/**
 	 * Calculates the angle from (0, 0) to (x, y), in radians
 	 * @param x The x distance from the origin
@@ -88,10 +88,7 @@ class FlxAngle
 	 */
 	public static inline function angleFromOrigin(x:Float, y:Float, asDegrees:Bool = false)
 	{
-		return if (asDegrees)
-				Math.atan2(y, x) * TO_DEG;
-			else
-				Math.atan2(y, x);
+		return if (asDegrees) Math.atan2(y, x) * TO_DEG; else Math.atan2(y, x);
 	}
 
 	/**
@@ -351,6 +348,60 @@ class FlxAngle
 		return angleBetweenTouch(Object, Touch, false);
 	}
 	#end
+
+	/**
+	 *  Translate an object's facing to angle.
+	 *
+	 * @param	FacingBitmask	Bitmask from which to calculate the angle, as in FlxSprite::facing
+	 * @param	AsDegrees		If you need the value in degrees instead of radians, set to true
+	 * @return	The angle (in radians unless AsDegrees is true)
+	 */
+	@:deprecated("FlxAngle.angleFromFacing is deprecated, use flags.degrees.")
+	public static function angleFromFacing(Facing:FlxDirectionFlags, AsDegrees:Bool = false):Float
+	{
+		var degrees = Facing.degrees;
+		return AsDegrees ? degrees : asRadians(degrees);
+	}
+
+	/**
+	 * Convert polar coordinates (radius + angle) to cartesian coordinates (x + y)
+	 *
+	 * @param	Radius	The radius
+	 * @param	Angle	The angle, in degrees
+	 * @param	point	Optional FlxPoint if you don't want a new one created
+	 * @return	The point in cartesian coords
+	 */
+	@:deprecated("FlxAngle.getCartesianCoords is deprecated, use FlxVector.setPolarDegrees")
+	public static function getCartesianCoords(Radius:Float, Angle:Float, ?point:FlxPoint):FlxPoint
+	{
+		var p = point;
+		if (p == null)
+			p = FlxPoint.get();
+
+		p.x = Radius * Math.cos(Angle * TO_RAD);
+		p.y = Radius * Math.sin(Angle * TO_RAD);
+		return p;
+	}
+
+	/**
+	 * Convert cartesian coordinates (x + y) to polar coordinates (radius + angle)
+	 *
+	 * @param	X		x position
+	 * @param	Y		y position
+	 * @param	point	Optional FlxPoint if you don't want a new one created
+	 * @return	The point in polar coords (x = Radius, y = Angle (degrees))
+	 */
+	@:deprecated("FlxAngle.getCartesianCoords is deprecated, use FlxPoint")
+	public static function getPolarCoords(X:Float, Y:Float, ?point:FlxPoint):FlxPoint
+	{
+		var p = point;
+		if (p == null)
+			p = FlxPoint.get();
+
+		p.x = Math.sqrt((X * X) + (Y * Y));
+		p.y = degreesFromOrigin(X, Y);
+		return p;
+	}
 
 	static inline function get_TO_DEG():Float
 	{

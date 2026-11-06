@@ -5,6 +5,12 @@ import haxe.Exception;
 import openfl.net.SharedObject;
 import openfl.net.SharedObjectFlushStatus;
 
+@:dox(hide)
+interface IDisposable
+{
+	function dispose():Void;
+}
+
 /**
  * A class to help automate and simplify save game functionality. A simple wrapper for the OpenFl's
  * SharedObject, with a couple helpers. It's used automatically by various flixel utilities like
@@ -152,7 +158,15 @@ class FlxSave implements IFlxDestroyable
 	 */
 	public function destroy():Void
 	{
-		_sharedObject = null;
+		if (_sharedObject != null)
+		{
+			if ((_sharedObject is IDisposable))
+			{
+				var disposable:IDisposable = cast _sharedObject;
+				disposable.dispose();
+			}
+			_sharedObject = null;
+		}
 		status = EMPTY;
 		data = null;
 	}
@@ -443,7 +457,7 @@ class FlxSave implements IFlxDestroyable
  * referencing is a really cool idea so let's allow it!
  */
 @:access(openfl.net.SharedObject)
-private class FlxSharedObject extends SharedObject
+class FlxSharedObject extends SharedObject implements IDisposable
 {
 	#if (flash || android || ios)
 	/** Use SharedObject as usual */
@@ -465,8 +479,15 @@ private class FlxSharedObject extends SharedObject
 	{
 		return sys.FileSystem.exists(SharedObject.__getPath(path, name));
 	}
+
+	public function dispose()
+	{
+		// do nothing
+	}
 	#else
 	static var all:Map<String, FlxSharedObject>;
+
+	var allId:String;
 
 	static function init()
 	{
@@ -478,6 +499,12 @@ private class FlxSharedObject extends SharedObject
 			if (app != null)
 				app.onExit.add(onExit);
 		}
+	}
+
+	public function dispose()
+	{
+		if (all != null && all.exists(allId))
+			all.remove(allId);
 	}
 
 	static function onExit(_)
@@ -553,6 +580,7 @@ private class FlxSharedObject extends SharedObject
 				}
 			}
 
+			sharedObject.allId = id;
 			all.set(id, sharedObject);
 		}
 

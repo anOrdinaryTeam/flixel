@@ -6,6 +6,7 @@ import flixel.graphics.FlxGraphic;
 import flixel.graphics.atlas.FlxAtlas;
 import flixel.graphics.atlas.FlxNode;
 import flixel.graphics.frames.FlxFramesCollection;
+import flixel.math.FlxAngle;
 import flixel.math.FlxMath;
 import flixel.math.FlxPoint;
 import flixel.math.FlxRect;
@@ -31,14 +32,19 @@ import openfl.geom.Rectangle;
 /**
  * Extends FlxSprite to support rendering text. Can tint, fade, rotate and scale just like a sprite. Doesn't really animate
  * though. Also does nice pixel-perfect centering on pixel fonts as long as they are only one-liners.
- *
+ * 
  * ## Autosizing
- *
- * By default `FlxText` is autosized to fit it's text.
+ * 
+ * By default `FlxText` is autosized to fit it's text. 
  * To set a fixed size, use the `fieldWidth`, `fieldHeight` and `autoSize` fields.
  */
 class FlxText extends FlxSprite
 {
+	/**
+	 * Whether or not should the texts should also modify software renderer antialiasing when antialiasing is set.
+	 */
+	public static var modifyTextFormatAntialias:Bool = false;
+
 	/**
 	 * 4px gutter at the bottom when the field has automatic height
 	 */
@@ -135,7 +141,7 @@ class FlxText extends FlxSprite
 	/**
 	 * The width of the `TextField` object used for bitmap generation for this `FlxText` object.
 	 * Use it when you want to change the visible width of text. Enables `autoSize` if `<= 0`.
-	 *
+	 * 
 	 * **NOTE:** auto width always implies auto height
 	 */
 	public var fieldWidth(get, set):Float;
@@ -143,37 +149,37 @@ class FlxText extends FlxSprite
 	/**
 	 * The height of `TextField` object used for bitmap generation for this `FlxText` object.
 	 * Use it when you want to change the visible height of the text. Enables "auto height" if `<= 0`.
-	 *
+	 * 
 	 * **NOTE:** Fixed height has no effect if `autoSize = true`.
 	 * @since 5.4.0
 	 */
 	public var fieldHeight(get, set):Float;
 
 	/**
-	 * Whether the `fieldWidth` and `fieldHeight` should be determined automatically.
+	 * Whether the `fieldWidth` and `fieldHeight` should be determined automatically. 
 	 * Requires `wordWrap` to be `false`.
 	 */
 	public var autoSize(get, set):Bool;
 
 	var _autoHeight:Bool = true;
-
+	
 	/**
 	 * Internal handler for deprecated `shadowOffset` field
 	 */
 	var _shadowOffset:FlxPoint = FlxPoint.get(1, 1);
-
+	
 	/**
 	 * Offset that is applied to the shadow border style, if active.
 	 * `x` and `y` are multiplied by `borderSize`. Default is `(1, 1)`, or lower-right corner.
 	 */
 	@:deprecated("shadowOffset is deprecated, use setBorderStyle(SHADOW_XY(offsetX, offsetY)), instead") // 5.9.0
 	public var shadowOffset(get, never):FlxPoint;
-
+	
 	/**
 	 * Used to offset the graphic to account for the border
 	 */
-	var _graphicOffset:FlxPoint = FlxPoint.get(0, 0);
-
+	var _graphicOffset:FlxPoint = FlxPoint.get();
+	
 	var _defaultFormat:TextFormat;
 	var _formatAdjusted:TextFormat;
 	var _formatRanges:Array<FlxTextFormatRange> = [];
@@ -275,7 +281,7 @@ class FlxText extends FlxSprite
 		}
 
 		_formatRanges = [];
-
+		
 		super.destroy();
 	}
 
@@ -681,7 +687,7 @@ class FlxText extends FlxSprite
 		updateDefaultFormat();
 		return LetterSpacing;
 	}
-
+	
 	override function setColorTransform(redMultiplier = 1.0, greenMultiplier = 1.0, blueMultiplier = 1.0, alphaMultiplier = 1.0, redOffset = 0.0, greenOffset = 0.0, blueOffset = 0.0, alphaOffset = 0.0)
 	{
 		super.setColorTransform(1, 1, 1, 1, redOffset, greenOffset, blueOffset, alphaOffset);
@@ -781,7 +787,7 @@ class FlxText extends FlxSprite
 	{
 		return _defaultFormat.underline;
 	}
-
+	
 	function set_underline(value:Bool):Bool
 	{
 		if (_defaultFormat.underline != value)
@@ -871,7 +877,7 @@ class FlxText extends FlxSprite
 		regenGraphic();
 		return super.get_height();
 	}
-
+	
 	inline function get_shadowOffset()
 	{
 		return _shadowOffset;
@@ -889,63 +895,53 @@ class FlxText extends FlxSprite
 		if (textField == null || !_regen)
 			return;
 
-		final oldGraphic:FlxGraphic = graphic;
-		final oldBorderPixels:BitmapData = _borderPixels;
+		final oldGraphic = graphic, oldBorderPixels = _borderPixels;
 
 		final oldWidth:Int = graphic != null ? graphic.width : 0;
 		final oldHeight:Int = graphic != null ? graphic.height : VERTICAL_GUTTER;
-
+		
 		final newWidthFloat:Float = textField.width;
 		final newHeightFloat:Float = _autoHeight ? textField.textHeight + VERTICAL_GUTTER : textField.height;
-
+		
 		var borderWidth:Float = 0;
 		var borderHeight:Float = 0;
-		switch (borderStyle)
+		switch(borderStyle)
 		{
 			case SHADOW if (_shadowOffset.x != 1 || _shadowOffset.y != 1):
 				borderWidth += Math.abs(_shadowOffset.x);
 				borderHeight += Math.abs(_shadowOffset.y);
-
+			
 			case SHADOW: // With the default shadowOffset value
 				borderWidth += Math.abs(borderSize);
 				borderHeight += Math.abs(borderSize);
-
+			
 			case SHADOW_XY(offsetX, offsetY):
 				borderWidth += Math.abs(offsetX);
 				borderHeight += Math.abs(offsetY);
-
-			case OUTLINE_FAST | OUTLINE:
+			
+			case OUTLINE_FAST | OUTLINE | OUTLINE_CARDINAL:
 				borderWidth += Math.abs(borderSize) * 2;
 				borderHeight += Math.abs(borderSize) * 2;
-
+			
 			case NONE:
 		}
-
+		
 		final newWidth:Int = Math.ceil(newWidthFloat + borderWidth);
 		final newHeight:Int = Math.ceil(newHeightFloat + borderHeight);
 
-		if (oldBorderPixels != null)
-		{
-			oldBorderPixels.dispose();
-			_borderPixels = null;
-		}
-
 		if (graphic == null || oldWidth != newWidth || oldHeight != newHeight)
 		{
-			if (oldGraphic != null)
-			{
-				oldGraphic.destroy();
-			}
+			if (oldBorderPixels != null) oldBorderPixels.dispose();
 
 			// Need to generate a new buffer to store the text graphic
 			final key:String = FlxG.bitmap.getUniqueKey("text");
 			makeGraphic(newWidth, newHeight, FlxColor.TRANSPARENT, false, key);
-			width = Math.ceil(newWidthFloat);
-			height = Math.ceil(newHeightFloat);
 
 			#if FLX_TRACK_GRAPHICS
 			graphic.trackingInfo = 'text($ID, $text)';
 			#end
+			
+			if (_hasBorderAlpha) _borderPixels = graphic.bitmap.clone();
 
 			if (_autoHeight) textField.height = newHeight;
 
@@ -957,18 +953,18 @@ class FlxText extends FlxSprite
 		else
 		{
 			graphic.bitmap.fillRect(_flashRect, FlxColor.TRANSPARENT);
+			if (_hasBorderAlpha)
+			{
+				if (_borderPixels == null) _borderPixels = new BitmapData(frameWidth, frameHeight, true);
+				else _borderPixels.fillRect(_flashRect, FlxColor.TRANSPARENT);
+			}
 		}
 
-		if (_hasBorderAlpha)
-		{
-			_borderPixels = new BitmapData(frameWidth, frameHeight, true, FlxColor.TRANSPARENT);
-		}
-
-		if (textField != null && textField.text != null && textField.text != "")
+		if (textField != null && textField.text != null && textField.text.length > 0)
 	    {
 			// Now that we've cleared a buffer, we need to actually render the text to it
 			copyTextFormat(_defaultFormat, _formatAdjusted);
-
+			
 			_matrix.identity();
 
 			applyBorderStyle();
@@ -1046,35 +1042,44 @@ class FlxText extends FlxSprite
 		regenGraphic();
 		super.draw();
 	}
-
+	
 	override function drawSimple(camera:FlxCamera):Void
 	{
 		// same as super but checks _graphicOffset
-		getScreenPosition(_point, camera).subtract(offset).subtract(_graphicOffset);
-		if (isPixelPerfectRender(camera))
-			_point.floor();
+		getScreenPosition(_point, camera).subtractPoint(offset).subtractPoint(_graphicOffset);
+		if (isPixelPerfectRender(camera)) _point.floor();
 
 		_point.copyTo(_flashPoint);
 		camera.copyPixels(_frame, framePixels, _flashRect, _flashPoint, colorTransform, blend, antialiasing, blendTarget);
 	}
-
+	
 	override function drawComplex(camera:FlxCamera):Void
 	{
 		_frame.prepareMatrix(_matrix, ANGLE_0, checkFlipX(), checkFlipY());
-		_matrix.translate(-origin.x, -origin.y);
+		_matrix.translate(-origin.x - _graphicOffset.x, -origin.y - _graphicOffset.y);
+
+		if (frameOffsetAngle != null && frameOffsetAngle != angle)
+		{
+			var angleOff = (frameOffsetAngle - angle) * FlxAngle.TO_RAD;
+			var cos = Math.cos(angleOff), sin = Math.sin(angleOff);
+			// cos doesnt need to be negated
+			_matrix.rotateWithTrig(cos, -sin);
+			_matrix.translate(-frameOffset.x, -frameOffset.y);
+			_matrix.rotateWithTrig(cos, sin);
+		}
+		else
+			_matrix.translate(-frameOffset.x, -frameOffset.y);
+
 		_matrix.scale(scale.x, scale.y);
 
 		if (bakedRotationAngle <= 0)
 		{
 			updateTrig();
-
-			if (angle != 0)
-				_matrix.rotateWithTrig(_cosAngle, _sinAngle);
+			
+			if (angle != 0) _matrix.rotateWithTrig(_cosAngle, _sinAngle);
 		}
 
-		// same as super but checks _graphicOffset
-		getScreenPosition(_point, camera).subtract(offset).subtract(_graphicOffset);
-		_point.add(origin.x, origin.y);
+		getScreenPosition(_point, camera).subtractPoint(offset).addPoint(origin);
 		_matrix.translate(_point.x, _point.y);
 
 		if (isPixelPerfectRender(camera))
@@ -1083,7 +1088,9 @@ class FlxText extends FlxSprite
 			_matrix.ty = Math.floor(_matrix.ty);
 		}
 
-		camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shader, blendTarget);
+		doAdditionalMatrixStuff(_matrix, camera);
+		
+		camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget);
 	}
 
 	/**
@@ -1102,7 +1109,7 @@ class FlxText extends FlxSprite
 		regenGraphic();
 		super.calcFrame(RunOnCpp);
 	}
-
+	
 	function applyBorderStyle():Void
 	{
 		// offset entire image to fit the border
@@ -1111,45 +1118,49 @@ class FlxText extends FlxSprite
 			case SHADOW if (_shadowOffset.x != 1 || _shadowOffset.y != 1):
 				_graphicOffset.x = _shadowOffset.x > 0 ? _shadowOffset.x : 0;
 				_graphicOffset.y = _shadowOffset.y > 0 ? _shadowOffset.y : 0;
-
+			
 			case SHADOW: // With the default shadowOffset value
 				if (borderSize < 0)
 					_graphicOffset.set(-borderSize, -borderSize);
-
+			
 			case SHADOW_XY(offsetX, offsetY):
 				_graphicOffset.x = offsetX < 0 ? -offsetX : 0;
 				_graphicOffset.y = offsetY < 0 ? -offsetY : 0;
-
-			case OUTLINE_FAST | OUTLINE if (borderSize < 0):
+			
+			case OUTLINE_FAST | OUTLINE | OUTLINE_CARDINAL if (borderSize < 0):
 				_graphicOffset.set(-borderSize, -borderSize);
-
-			case NONE | OUTLINE_FAST | OUTLINE:
+			
+			case NONE | OUTLINE_FAST | OUTLINE | OUTLINE_CARDINAL:
 				_graphicOffset.set(0, 0);
 		}
 		_matrix.translate(_graphicOffset.x, _graphicOffset.y);
-
+		
 		switch (borderStyle)
 		{
 			case SHADOW if (_shadowOffset.x != 1 || _shadowOffset.y != 1):
 				// Render a shadow beneath the text using the shadowOffset property
 				applyFormats(_formatAdjusted, true);
-
+				
 				var iterations = borderQuality < 1 ? 1 : Std.int(Math.abs(borderSize) * borderQuality);
 				final delta = borderSize / iterations;
+
+				var graphic:BitmapData = _hasBorderAlpha ? _borderPixels : graphic.bitmap;
 				for (i in 0...iterations)
 				{
-					copyTextWithOffset(delta, delta);
+					_matrix.translate(delta, delta); // upper-left
+					drawTextFieldTo(graphic);
+					// copyTextWithOffset(delta, delta);
 				}
-
+				
 				_matrix.translate(-_shadowOffset.x * borderSize, -_shadowOffset.y * borderSize);
-
+			
 			case SHADOW: // With the default shadowOffset value
 				// Render a shadow beneath the text
 				applyFormats(_formatAdjusted, true);
-
+				
 				final originX = _matrix.tx;
 				final originY = _matrix.ty;
-
+				
 				final iterations = borderQuality < 1 ? 1 : Std.int(Math.abs(borderSize) * borderQuality);
 				var i = iterations + 1;
 				while (i-- > 1)
@@ -1159,14 +1170,14 @@ class FlxText extends FlxSprite
 					_matrix.tx = originX;
 					_matrix.ty = originY;
 				}
-
+			
 			case SHADOW_XY(shadowX, shadowY):
 				// Render a shadow beneath the text with the specified offset
 				applyFormats(_formatAdjusted, true);
-
+				
 				final originX = _matrix.tx;
 				final originY = _matrix.ty;
-
+				
 				// Size is max of both, so (4, 4) has 4 iterations, just like SHADOW
 				final size = Math.max(shadowX, shadowY);
 				final iterations = borderQuality < 1 ? 1 : Std.int(size * borderQuality);
@@ -1178,27 +1189,63 @@ class FlxText extends FlxSprite
 					_matrix.tx = originX;
 					_matrix.ty = originY;
 				}
-
+			
 			case OUTLINE:
 				// Render an outline around the text
 				// (do 8 offset draw calls)
 				applyFormats(_formatAdjusted, true);
 
+				var graphic:BitmapData = _hasBorderAlpha ? _borderPixels : graphic.bitmap;
 				final iterations = FlxMath.maxInt(1, Std.int(borderSize * borderQuality));
 				var i = iterations + 1;
 				while (i-- > 1)
 				{
 					final curDelta = borderSize / iterations * i;
-					copyTextWithOffset(-curDelta, -curDelta); // upper-left
-					copyTextWithOffset(curDelta, 0); // upper-middle
-					copyTextWithOffset(curDelta, 0); // upper-right
-					copyTextWithOffset(0, curDelta); // middle-right
-					copyTextWithOffset(0, curDelta); // lower-right
-					copyTextWithOffset(-curDelta, 0); // lower-middle
-					copyTextWithOffset(-curDelta, 0); // lower-left
-					copyTextWithOffset(0, -curDelta); // lower-left
+					_matrix.translate(-curDelta, -curDelta); // upper-left
+					drawTextFieldTo(graphic);
+					_matrix.translate(curDelta, 0); // upper-middle
+					drawTextFieldTo(graphic);
+					_matrix.translate(curDelta, 0); // upper-right
+					drawTextFieldTo(graphic);
+					_matrix.translate(0, curDelta); // middle-right
+					drawTextFieldTo(graphic);
+					_matrix.translate(0, curDelta); // lower-right
+					drawTextFieldTo(graphic);
+					_matrix.translate(-curDelta, 0); // lower-middle
+					drawTextFieldTo(graphic);
+					_matrix.translate(-curDelta, 0); // lower-left
+					drawTextFieldTo(graphic);
+					_matrix.translate(0, -curDelta); // lower-left
+					drawTextFieldTo(graphic);
 
 					_matrix.translate(curDelta, 0); // return to center
+				}
+
+			case OUTLINE_CARDINAL:
+				// Render an outline around the text
+				// (do 4 offset draw calls just in all cardinal directions)
+				applyFormats(_formatAdjusted, true);
+
+				var graphic:BitmapData = _hasBorderAlpha ? _borderPixels : graphic.bitmap;
+				final iterations = FlxMath.maxInt(1, Std.int(borderSize * borderQuality));
+				var i = iterations + 1;
+				while (i-- > 1)
+				{
+					final curDelta = borderSize / iterations * i;
+					_matrix.translate(-curDelta, 0);
+					drawTextFieldTo(graphic);
+					_matrix.translate(curDelta * 2, 0);
+					drawTextFieldTo(graphic);
+					_matrix.translate(-curDelta, -curDelta);
+					drawTextFieldTo(graphic);
+					_matrix.translate(0, curDelta * 2);
+					drawTextFieldTo(graphic);
+					//copyTextWithOffset(-curDelta, 0); // left
+					//copyTextWithOffset(curDelta * 2, 0); // right
+					//copyTextWithOffset(-curDelta, -curDelta); // up
+					//copyTextWithOffset(0, curDelta * 2); // down
+					
+					_matrix.translate(0, -curDelta); // return to center
 				}
 
 			case OUTLINE_FAST:
@@ -1207,19 +1254,28 @@ class FlxText extends FlxSprite
 				// (this method might not work with certain narrow fonts)
 				applyFormats(_formatAdjusted, true);
 
+				var graphic:BitmapData = _hasBorderAlpha ? _borderPixels : graphic.bitmap;
 				final iterations = FlxMath.maxInt(1, Std.int(borderSize * borderQuality));
 				var i = iterations + 1;
 				while (i-- > 1)
 				{
 					final curDelta = borderSize / iterations * i;
-					copyTextWithOffset(-curDelta, -curDelta); // upper-left
-					copyTextWithOffset(curDelta * 2, 0); // upper-right
-					copyTextWithOffset(0, curDelta * 2); // lower-right
-					copyTextWithOffset(-curDelta * 2, 0); // lower-left
+					_matrix.translate(-curDelta, -curDelta);
+					drawTextFieldTo(graphic);
+					_matrix.translate(curDelta * 2, 0);
+					drawTextFieldTo(graphic);
+					_matrix.translate(0, curDelta * 2);
+					drawTextFieldTo(graphic);
+					_matrix.translate(-curDelta * 2, 0);
+					drawTextFieldTo(graphic);
+					// copyTextWithOffset(-curDelta, -curDelta); // upper-left
+					// copyTextWithOffset(curDelta * 2, 0); // upper-right
+					// copyTextWithOffset(0, curDelta * 2); // lower-right
+					// copyTextWithOffset(-curDelta * 2, 0); // lower-left
 
 					_matrix.translate(curDelta, -curDelta); // return to center
 				}
-
+			
 			case NONE:
 		}
 	}
@@ -1313,7 +1369,7 @@ class FlxText extends FlxSprite
 
 	override function set_antialiasing(value:Bool):Bool
 	{
-		if (value)
+		if (!modifyTextFormatAntialias || value)
 		{
 			textField.antiAliasType = NORMAL;
 			textField.sharpness = 100;
@@ -1328,6 +1384,13 @@ class FlxText extends FlxSprite
 
 		return antialiasing = value;
 	}
+
+	#if CUSTOM_CLASSES
+	override function update(elapsed:Float):Void
+	{
+		super.update(elapsed);
+	}
+	#end
 }
 
 @:allow(flixel.text.FlxText.applyFormats)
@@ -1366,7 +1429,7 @@ class FlxTextFormat
 	}
 }
 
-private class FlxTextFormatRange
+class FlxTextFormatRange
 {
 	public var range(default, null):FlxRange<Int>;
 	public var format(default, null):FlxTextFormat;
@@ -1393,23 +1456,28 @@ class FlxTextFormatMarkerPair
 enum FlxTextBorderStyle
 {
 	NONE;
-
+	
 	/**
 	 * A simple shadow to the lower-right
 	 */
 	SHADOW;
-
+	
 	/**
 	 * A shadow that allows custom placement
 	 * **Note:** Ignores borderSize
 	 */
 	SHADOW_XY(offsetX:Float, offsetY:Float);
-
+	
 	/**
 	 * Outline on all 8 sides
 	 */
 	OUTLINE;
-
+	
+	/**
+	 * Outline on all 4 cardinal directions (UP, DOWN, LEFT, RIGHT)
+	 */
+	OUTLINE_CARDINAL;
+	
 	/**
 	 * Outline, optimized using only 4 draw calls
 	 * **Note:** Might not work for narrow and/or 1-pixel fonts
