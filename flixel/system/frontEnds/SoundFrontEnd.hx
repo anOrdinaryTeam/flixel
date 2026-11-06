@@ -402,6 +402,8 @@ class SoundFrontEnd
 	 */
 	public function resetCache():Void
 	{
+		flixel.sound.FlxSoundData.clearCache();
+
 		var cache = Std.downcast(openfl.utils.Assets.cache, openfl.utils.AssetCache);
 		if (cache == null || cache.sound == null) return;
 		for (key in [for (k in cache.sound.keys()) k])

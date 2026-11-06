@@ -335,7 +335,11 @@ class FlxSound extends FlxBasic
 			
 		cleanup(true);
 		
-		if ((EmbeddedSound is Sound))
+		if ((EmbeddedSound is FlxSoundData))
+		{
+			_sound = (EmbeddedSound : FlxSoundData).sound;
+		}
+		else if ((EmbeddedSound is Sound))
 		{
 			_sound = EmbeddedSound;
 		}
@@ -582,6 +586,85 @@ class FlxSound extends FlxBasic
 	 *
 	 * @return	The adjusted volume of the sound.
 	 */
+	/**
+	 * Default value for `timeScaledPitch`-like behaviour, kept for Codename Engine compatibility.
+	 * @since CodenameCrew's Flixel
+	 */
+	public static var defaultTimeScaledPitch:Bool = true;
+
+	/**
+	 * Whether a sound is loaded into this `FlxSound`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var loaded(get, never):Bool;
+
+	inline function get_loaded():Bool
+		return _source != null;
+
+	/**
+	 * Seeks to `startTime` and leaves the sound paused, ready for `resume()` or `FlxSound.playSounds()`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function prepare(startTime = 0.0, ?endTime:Float, ?volume:Float, ?pitch:Float, ?pan:Float):FlxSound
+	{
+		if (volume != null)
+			this.volume = volume;
+		if (pitch != null)
+			this.pitch = pitch;
+		if (pan != null)
+			this.pan = pan;
+		if (endTime != null)
+			this.endTime = endTime;
+
+		if (_source == null)
+			return this;
+
+		if (_source.playing)
+			_source.pause();
+		_source.currentTime = startTime;
+		_paused = true;
+		active = false;
+
+		return this;
+	}
+
+	/**
+	 * Starts every given sound back to back, so they stay in sync. Use `prepare()` first.
+	 * @since CodenameCrew's Flixel
+	 */
+	public static function playSounds(sounds:Array<FlxSound>):Void
+	{
+		final toPlay:Array<FlxSound> = [];
+		for (sound in sounds)
+		{
+			if (sound == null || !sound.exists || sound._source == null)
+				continue;
+			sound._paused = false;
+			sound.active = true;
+			toPlay.push(sound);
+		}
+		for (sound in toPlay)
+			sound._source.play();
+	}
+
+	/**
+	 * Pauses every given sound.
+	 * @since CodenameCrew's Flixel
+	 */
+	public static function pauseSounds(sounds:Array<FlxSound>):Void
+	{
+		for (sound in sounds)
+			if (sound != null && sound.exists && sound.playing)
+				sound.pause();
+	}
+
+	/**
+	 * Current playback time, read from the audio source.
+	 * @since CodenameCrew's Flixel
+	 */
+	public inline function getActualTime():Float
+		return time;
+
 	public inline function getActualVolume():Float
 	{
 		return _volume * _volumeAdjust;
