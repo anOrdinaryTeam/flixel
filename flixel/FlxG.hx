@@ -450,7 +450,9 @@ class FlxG
 		if (state == null || state._constructor == null)
 			FlxG.log.error("FlxG.resetState was called while switching states");
 		else
-			switchState(state._constructor);
+			// a new instance, like Codename Engine's flixel: switchState then calls the current
+			// state's switchTo, which CNE's MusicBeatState uses for its transitions
+			switchState(state._constructor());
 	}
 
 	/**

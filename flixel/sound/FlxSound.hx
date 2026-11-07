@@ -386,6 +386,9 @@ class FlxSound extends FlxBasic
 			endTime = null;
 			_timeScaledPitch = defaultTimeScaledPitch;
 			clearEffects();
+			// like Codename Engine: a pooled sound must not keep a persist flag from its last use,
+			// or it survives state switches (a song's vocals playing on in the next menu)
+			persist = false;
 		}
 
 		loopCount = 0;
