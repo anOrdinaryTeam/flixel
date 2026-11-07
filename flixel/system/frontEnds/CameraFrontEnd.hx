@@ -176,6 +176,80 @@ class CameraFrontEnd
 	/**
 	 * Keeps each camera's `ID` and `zIndex` equal to its position in `list`, starting at `from`.
 	 */
+	/**
+	 * Returns the index of the specified camera in the list (Codename Engine API).
+	 */
+	public inline function indexOf(camera:FlxCamera):Int
+	{
+		return list.indexOf(camera);
+	}
+
+	/**
+	 * Returns true if the specified camera is in the list (Codename Engine API).
+	 */
+	public inline function contains(camera:FlxCamera):Bool
+	{
+		return list.contains(camera);
+	}
+
+	/**
+	 * Removes the camera at `index` from the game (Codename Engine API).
+	 */
+	public function removeAt(index:Int, destroy:Bool = true):Void
+	{
+		if (index < 0 || index >= list.length)
+		{
+			FlxG.log.warn("FlxG.cameras.removeAt(): The camera you attempted to remove is not a part of the game.");
+			return;
+		}
+
+		remove(list[index], destroy);
+	}
+
+	/**
+	 * Replaces the camera list with `order` (Codename Engine API). Cameras not in `order`
+	 * are removed; `defaults` become the default draw targets (the first camera if null).
+	 */
+	public function setOrder(order:Array<FlxCamera>, ?defaults:Array<FlxCamera>, destroy:Bool = false):Void
+	{
+		for (camera in list.copy())
+			if (!order.contains(camera))
+				remove(camera, destroy);
+
+		final oldList = list.copy();
+
+		for (camera in list)
+			FlxG.game.removeChild(camera.flashSprite);
+
+		list.splice(0, list.length);
+		this.defaults.splice(0, this.defaults.length);
+
+		for (i => camera in order)
+		{
+			if (camera == null)
+			{
+				FlxG.log.warn('FlxG.cameras.setOrder(): Camera at index $i is null.');
+				continue;
+			}
+
+			FlxG.game.addChildAt(camera.flashSprite, FlxG.game.getChildIndex(FlxG.game._inputContainer));
+			list.push(camera);
+
+			if (!oldList.contains(camera))
+				cameraAdded.dispatch(camera);
+		}
+
+		syncIndices(0);
+
+		if (defaults == null && list.length > 0)
+			defaults = [list[0]];
+
+		if (defaults != null)
+			for (camera in defaults)
+				if (camera != null && list.contains(camera))
+					this.defaults.push(camera);
+	}
+
 	function syncIndices(from:Int):Void
 	{
 		for (i in from...list.length)

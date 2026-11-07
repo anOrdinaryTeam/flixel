@@ -52,6 +52,14 @@ class FlxCamera extends FlxBasic
 	public static var defaultZoom:Float = 1.0;
 
 	/**
+	 * The cameras used by objects whose `cameras` is not set. Kept for Codename Engine
+	 * scripts; use `FlxG.cameras.setDefaultDrawTarget` instead.
+	 * @see FlxG.cameras.setDefaultDrawTarget
+	 */
+	@:deprecated("`FlxCamera.defaultCameras` is deprecated, use `FlxG.cameras.setDefaultDrawTarget` instead")
+	public static var defaultCameras(get, set):Array<FlxCamera>;
+
+	/**
 	 * Used behind-the-scenes during the draw phase so that members use the same default
 	 * cameras as their parent.
 	 *
@@ -2399,9 +2407,14 @@ class FlxCamera extends FlxBasic
 		viewMarginY = 0.5 * height * (scaleY - initialZoom) / scaleY;
 	}
 
-	static inline function get_defaultCameras():Array<FlxCamera>
+	static function get_defaultCameras():Array<FlxCamera>
 	{
 		return _defaultCameras;
+	}
+
+	static function set_defaultCameras(value:Array<FlxCamera>):Array<FlxCamera>
+	{
+		return _defaultCameras = value;
 	}
 
 	inline function get_viewMarginLeft():Float
