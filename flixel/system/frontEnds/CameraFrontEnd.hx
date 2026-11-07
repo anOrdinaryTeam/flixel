@@ -38,6 +38,12 @@ class CameraFrontEnd
 	/** @since 4.2.0 */
 	public var cameraRemoved(default, null):FlxTypedSignal<FlxCamera->Void> = new FlxTypedSignal<FlxCamera->Void>();
 
+	/**
+	 * Dispatched right before a camera's size or scale changes (Codename Engine API).
+	 * @since CodenameCrew's Flixel
+	 */
+	public var preCameraResized(default, null):FlxTypedSignal<FlxCamera->Void> = new FlxTypedSignal<FlxCamera->Void>();
+
 	/** @since 4.2.0 */
 	public var cameraResized(default, null):FlxTypedSignal<FlxCamera->Void> = new FlxTypedSignal<FlxCamera->Void>();
 

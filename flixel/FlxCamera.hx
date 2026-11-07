@@ -31,6 +31,9 @@ import openfl.filters.ShaderFilter;
 
 using flixel.util.FlxColorTransformUtil;
 
+/** Codename Engine name for the quad draw item. */
+typedef FlxDrawItem = flixel.graphics.tile.FlxDrawQuadsItem;
+
 /**
  * The camera class is used to display the game's visuals.
  * By default one camera is created automatically, that is the same size as window.
@@ -398,9 +401,21 @@ class FlxCamera extends FlxBasic
 	public var alpha(default, set):Float = 1;
 
 	/**
-	 * The angle of the camera display (in degrees).
+	 * The angle of the camera display (in degrees). By default (as in Codename Engine) the
+	 * camera's contents rotate around its center; with `rotateSprite` the whole camera
+	 * sprite rotates instead, including its background, effects and filters.
 	 */
 	public var angle(default, set):Float = 0;
+
+	/**
+	 * Whether `angle` rotates the whole camera sprite (`true`) or only its contents
+	 * (`false`, the default, like Codename Engine).
+	 * @since CodenameCrew's Flixel
+	 */
+	public var rotateSprite(default, set):Bool = false;
+
+	@:noCompletion var _sinAngle:Float = 0;
+	@:noCompletion var _cosAngle:Float = 1;
 
 	/**
 	 * The color tint of the camera display.
@@ -1503,7 +1518,7 @@ class FlxCamera extends FlxBasic
 		if (_sinScrollAngle == 0 && _cosScrollAngle == 1)
 			return __rotatedBounds;
 
-		return __rotatedBounds.getRotatedBounds(scrollAngle, FlxPoint.weak(__rotatedBounds.width * 0.5, __rotatedBounds.height * 0.5), __rotatedBounds);
+		return __rotatedBounds.getRotatedBounds(__contentAngle(), FlxPoint.weak(__rotatedBounds.width * 0.5, __rotatedBounds.height * 0.5), __rotatedBounds);
 	}
 
 	@:noCompletion var _sinScrollAngle = 0.0;
@@ -1517,9 +1532,17 @@ class FlxCamera extends FlxBasic
 	@:noCompletion final __rotatedBounds = new FlxRect();
 	@:noCompletion final __origin = new FlxPoint();
 
+	/**
+	 * Rotation applied to the camera's contents: `scrollAngle`, plus `angle` unless `rotateSprite`.
+	 */
+	@:noCompletion inline function __contentAngle():Float
+	{
+		return scrollAngle + (rotateSprite ? 0 : angle);
+	}
+
 	@:noCompletion inline function __update__trig()
 	{
-		final radians = mod(scrollAngle, 360) * flixel.math.FlxAngle.TO_RAD;
+		final radians = mod(__contentAngle(), 360) * flixel.math.FlxAngle.TO_RAD;
 		_sinScrollAngle = Math.sin(radians);
 		_cosScrollAngle = Math.cos(radians);
 		_negativeSinScrollAngle = Math.sin(-radians);
@@ -2095,6 +2118,8 @@ class FlxCamera extends FlxBasic
 		scaleX = X;
 		scaleY = Y;
 
+		FlxG.cameras.preCameraResized.dispatch(this);
+
 		totalScaleX = scaleX * FlxG.scaleMode.scale.x;
 		totalScaleY = scaleY * FlxG.scaleMode.scale.y;
 
@@ -2177,6 +2202,7 @@ class FlxCamera extends FlxBasic
 		if (width != Value && Value > 0)
 		{
 			width = Value;
+			FlxG.cameras.preCameraResized.dispatch(this);
 			calcMarginX();
 			updateFlashOffset();
 			updateScrollRect();
@@ -2192,6 +2218,7 @@ class FlxCamera extends FlxBasic
 		if (height != Value && Value > 0)
 		{
 			height = Value;
+			FlxG.cameras.preCameraResized.dispatch(this);
 			calcMarginY();
 			updateFlashOffset();
 			updateScrollRect();
@@ -2296,9 +2323,67 @@ class FlxCamera extends FlxBasic
 	function set_angle(Angle:Float):Float
 	{
 		angle = Angle;
-		flashSprite.rotation = Angle;
+		if (flashSprite != null)
+			flashSprite.rotation = rotateSprite ? Angle : 0;
+
+		final radians = Angle * flixel.math.FlxAngle.TO_RAD;
+		_sinAngle = Math.sin(radians);
+		_cosAngle = Math.cos(radians);
+
+		__update__trig();
 		return Angle;
 	}
+
+	function set_rotateSprite(value:Bool):Bool
+	{
+		rotateSprite = value;
+		set_angle(angle);
+		return value;
+	}
+
+	/** Codename Engine names for the margin helpers. */
+	@:noCompletion inline function calcOffsetX():Void
+		calcMarginX();
+
+	@:noCompletion inline function calcOffsetY():Void
+		calcMarginY();
+
+	@:noCompletion var viewOffsetX(get, set):Float;
+	@:noCompletion var viewOffsetY(get, set):Float;
+	@:noCompletion var viewOffsetWidth(get, never):Float;
+	@:noCompletion var viewOffsetHeight(get, never):Float;
+
+	inline function get_viewOffsetX():Float
+		return viewMarginX;
+
+	inline function set_viewOffsetX(value:Float):Float
+		return viewMarginX = value;
+
+	inline function get_viewOffsetY():Float
+		return viewMarginY;
+
+	inline function set_viewOffsetY(value:Float):Float
+		return viewMarginY = value;
+
+	inline function get_viewOffsetWidth():Float
+		return viewMarginRight;
+
+	inline function get_viewOffsetHeight():Float
+		return viewMarginBottom;
+
+	/** Current shake offset (Codename Engine names). */
+	@:noCompletion var lastShakeX(get, never):Float;
+	@:noCompletion var lastShakeY(get, never):Float;
+
+	inline function get_lastShakeX():Float
+		return _fxShakeXOffset;
+
+	inline function get_lastShakeY():Float
+		return _fxShakeYOffset;
+
+	/** Codename Engine name for whether a blend mode can be batched. */
+	@:noCompletion inline static function isCoherentBlendMode(blend:BlendMode):Bool
+		return isBatchableBlend(blend, null);
 
 	function set_color(Color:FlxColor):FlxColor
 	{

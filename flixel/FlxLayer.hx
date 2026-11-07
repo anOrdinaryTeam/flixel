@@ -122,6 +122,19 @@ class FlxLayer extends FlxBasic
 			return _headTriangles;
 		}
 
+		return getNewDrawTrianglesItem(graphic, smoothing, isColored, blend, hasColorOffsets, shader, blendTarget, wrapMode);
+	}
+
+	/**
+	 * Always starts a new triangles batch (Codename Engine API).
+	 */
+	@:noCompletion
+	public function getNewDrawTrianglesItem(graphic:FlxGraphic, smoothing:Bool = false, isColored:Bool = false, ?blend:BlendMode, ?hasColorOffsets:Bool,
+			?shader:FlxShader, ?blendTarget:Context3DBlendTarget, ?wrapMode:Context3DWrapMode):FlxDrawTrianglesItem
+	{
+		if (blendTarget == null)
+			blendTarget = Context3DBlendTarget.BlendRenderTarget;
+
 		var item = _storageTrianglesHead;
 		if (item != null)
 		{
@@ -147,6 +160,14 @@ class FlxLayer extends FlxBasic
 
 		pushItem(item);
 		return item;
+	}
+
+	/**
+	 * Splices a single draw item onto a camera's draw stack (Codename Engine API).
+	 */
+	public function injectDrawCall(camera:FlxCamera, drawItem:FlxDrawBaseItem<Dynamic>):Void
+	{
+		injectDrawCalls(camera, drawItem, drawItem);
 	}
 
 	inline function pushItem(item:FlxDrawBaseItem<Dynamic>):Void

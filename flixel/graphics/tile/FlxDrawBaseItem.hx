@@ -5,6 +5,7 @@ import flixel.graphics.frames.FlxFrame;
 import flixel.math.FlxMatrix;
 import openfl.display.BlendMode;
 import openfl.display3D.Context3DBlendTarget;
+import openfl.display3D.Context3DCompareMode;
 import openfl.display3D.Context3DWrapMode;
 import openfl.geom.ColorTransform;
 import flixel.system.FlxAssets.FlxShader;
@@ -43,6 +44,12 @@ class FlxDrawBaseItem<T>
 	 */
 	public var wrapMode:Null<Context3DWrapMode> = null;
 
+	/**
+	 * Depth test for this batch; anything but `ALWAYS` enables depth testing while it draws
+	 * (Codename Engine API).
+	 */
+	public var depthCompareMode:Context3DCompareMode = ALWAYS;
+
 	@:noCompletion
 	@:deprecated("blending is deprecated, remove all references to it")
 	public var blending:Int = 0;
@@ -62,6 +69,7 @@ class FlxDrawBaseItem<T>
 		graphics = null;
 		antialiasing = false;
 		wrapMode = null;
+		depthCompareMode = ALWAYS;
 		nextTyped = null;
 		next = null;
 	}
@@ -90,6 +98,24 @@ class FlxDrawBaseItem<T>
 	{
 		return 0;
 	}
+
+	/**
+	 * Enables the batch's depth test on the camera canvas, if it has one.
+	 * Returns whether `clearDepthOverride` has to be called after drawing.
+	 */
+	inline function applyDepthOverride(camera:FlxCamera):Bool
+	{
+		if (depthCompareMode == null || depthCompareMode == ALWAYS)
+			return false;
+
+		camera.canvas.graphics.overrideDepthTest(true, depthCompareMode);
+		return true;
+	}
+
+	inline function clearDepthOverride(camera:FlxCamera):Void
+	{
+		camera.canvas.graphics.overrideDepthTest(false, ALWAYS);
+	}
 }
 
 enum FlxDrawItemType
@@ -97,3 +123,4 @@ enum FlxDrawItemType
 	TILES;
 	TRIANGLES;
 }
+

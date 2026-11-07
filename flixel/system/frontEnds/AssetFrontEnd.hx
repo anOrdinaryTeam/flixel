@@ -90,6 +90,13 @@ class AssetFrontEnd
 	#else
 	public final defaultSoundExtension:String = '.${haxe.macro.Compiler.getDefine("FLX_DEFAULT_SOUND_EXT")}';
 	#end
+
+	/**
+	 * Extensions `getSound`, `getSoundUnsafe` and `streamSound` try, in order, when looking
+	 * for a sound (Codename Engine API). All of them are decoded by miniaudio.
+	 * @since CodenameCrew's Flixel
+	 */
+	public final soundExtensions:Array<String> = ["mp3", "ogg", "wav", "flac", "opus"];
 	
 	/**
 	 * Used by methods like `getAsset`, `getBitmapData`, `getText`, their "unsafe" counterparts and
@@ -125,6 +132,10 @@ class AssetFrontEnd
 				Assets.cache.getBitmapData(id);
 			case SOUND if (canUseCache && Assets.cache.hasSound(id)):
 				Assets.cache.getSound(id);
+			// streamed sounds are never cached, each one decodes on its own
+			case MUSIC:
+				final buffer = lime.media.AudioBuffer.fromFile(getPath(id), true);
+				buffer != null ? Sound.fromAudioBuffer(buffer) : null;
 			case FONT if (canUseCache && Assets.cache.hasFont(id)):
 				Assets.cache.getFont(id);
 			
@@ -159,6 +170,7 @@ class AssetFrontEnd
 			case BINARY: Assets.getBytes(id);
 			case IMAGE: Assets.getBitmapData(id, useCache);
 			case SOUND: Assets.getSound(id, useCache);
+			case MUSIC: Assets.getMusic(id, useCache);
 			case FONT: Assets.getFont(id, useCache);
 		}
 	}
@@ -224,6 +236,7 @@ class AssetFrontEnd
 			case BINARY: Assets.loadBytes(id);
 			case IMAGE: Assets.loadBitmapData(id, useCache);
 			case SOUND: Assets.loadSound(id, useCache);
+			case MUSIC: Assets.loadMusic(id, useCache);
 			case FONT: Assets.loadFont(id, useCache);
 		}
 	}
@@ -239,7 +252,7 @@ class AssetFrontEnd
 	{
 		#if FLX_DEFAULT_SOUND_EXT
 		// add file extension
-		if (type == SOUND)
+		if (type == SOUND || type == MUSIC)
 			id = addSoundExt(id);
 		#end
 		
@@ -267,7 +280,7 @@ class AssetFrontEnd
 	{
 		#if FLX_DEFAULT_SOUND_EXT
 		// add file extension
-		if (type == SOUND)
+		if (type == SOUND || type == MUSIC)
 			id = addSoundExt(id);
 		#end
 		
@@ -343,9 +356,10 @@ class AssetFrontEnd
 	 * @param   useCache  Whether to allow use of the asset cache (if one exists)
 	 * @return  A new `Sound` object Note: Dos not return a `FlxSound`
 	 */
-	public inline function getSoundUnsafe(id:String, useCache = true):Sound
+	public function getSoundUnsafe(id:String, useCache = true):Sound
 	{
-		return cast getAssetUnsafe(addSoundExtIf(id), SOUND, useCache);
+		final found = findSoundWithExtension(id);
+		return cast getAssetUnsafe(found != null ? found : addSoundExtIf(id), SOUND, useCache);
 	}
 	
 	/**
@@ -358,9 +372,73 @@ class AssetFrontEnd
 	 * @param   logStyle  How to log, if the asset is not found. Uses `LogStyle.ERROR` by default
 	 * @return  A new `Sound` object Note: Dos not return a `FlxSound`
 	 */
-	public inline function getSound(id:String, useCache = true, ?logStyle:LogStyle):Sound
+	public function getSound(id:String, useCache = true, ?logStyle:LogStyle):Sound
 	{
-		return cast getAsset(addSoundExtIf(id), SOUND, useCache, logStyle);
+		final found = findSoundWithExtension(id);
+		return cast getAsset(found != null ? found : addSoundExtIf(id), SOUND, useCache, logStyle);
+	}
+
+	/**
+	 * First of `id` with each of `soundExtensions` that exists, as Codename Engine looks up sounds.
+	 */
+	function findSoundWithExtension(id:String):Null<String>
+	{
+		final path = new Path(id);
+		for (ext in soundExtensions)
+		{
+			path.ext = ext;
+			final candidate = path.toString();
+			if (exists(candidate, SOUND))
+				return candidate;
+		}
+		return null;
+	}
+
+	/**
+	 * Gets a streamed sound (decoded while it plays), without logging missing assets.
+	 * Keeps memory low for long tracks like music (Codename Engine API).
+	 * @since CodenameCrew's Flixel
+	 */
+	public dynamic function streamSoundUnsafe(id:String, useCache = true):Sound
+	{
+		final found = findSoundWithExtension(id);
+		return cast getAssetUnsafe(found != null ? found : addSoundExtIf(id), MUSIC, useCache);
+	}
+
+	/**
+	 * Gets a streamed sound (decoded while it plays), logs when the asset is not found
+	 * (Codename Engine API).
+	 * @since CodenameCrew's Flixel
+	 */
+	public function streamSound(id:String, useCache = true, ?logStyle:LogStyle):Sound
+	{
+		final found = findSoundWithExtension(id);
+		return cast getAsset(found != null ? found : addSoundExtIf(id), MUSIC, useCache, logStyle);
+	}
+
+	/**
+	 * `streamSound`, adding the default sound extension when `id` has none.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function streamSoundAddExt(id:String, ?logStyle:LogStyle):Sound
+	{
+		return streamSound(addSoundExt(id), true, logStyle);
+	}
+
+	/**
+	 * Whether this sound can be streamed. With miniaudio every supported format streams,
+	 * as long as the file exists on disk.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function canStreamSound(id:String):Bool
+	{
+		#if sys
+		final found = findSoundWithExtension(id);
+		final path = Assets.getPath(found != null ? found : addSoundExtIf(id));
+		return path != null && sys.FileSystem.exists(path) && soundExtensions.contains(Path.extension(path).toLowerCase());
+		#else
+		return false;
+		#end
 	}
 	
 	/**
@@ -672,6 +750,9 @@ enum abstract FlxAssetType(String)
 	
 	/** Audio assets, such as *.ogg or *.wav files */
 	var SOUND = "sound";
+
+	/** Streamed audio assets, decoded while they play (Codename Engine API) */
+	var MUSIC = "music";
 	
 	/** Text assets */
 	var TEXT = "text";
@@ -684,6 +765,7 @@ enum abstract FlxAssetType(String)
 			case FONT: AssetType.FONT;
 			case IMAGE: AssetType.IMAGE;
 			case SOUND: AssetType.SOUND;
+			case MUSIC: AssetType.MUSIC;
 			case TEXT: AssetType.TEXT;
 		}
 	}

@@ -5,8 +5,12 @@ import flixel.FlxG;
 import flixel.math.FlxMath;
 import flixel.math.FlxPoint;
 import flixel.system.FlxAssets.FlxSoundAsset;
+import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
+import flixel.util.FlxSignal;
 import flixel.util.FlxStringUtil;
+import lime.media.AudioBuffer;
+import lime.media.AudioManager;
 import lime.media.AudioSource;
 import openfl.events.Event;
 import openfl.events.IEventDispatcher;
@@ -149,6 +153,98 @@ class FlxSound extends FlxBasic
 	 * @since 4.1.0
 	 */
 	public var fadeTween:FlxTween;
+
+	/**
+	 * Dispatched when the sound finishes playing (every loop, like `onComplete`).
+	 * @since CodenameCrew's Flixel
+	 */
+	public final onFinish:FlxSignal = new FlxSignal();
+
+	/**
+	 * Dispatched when the sound is destroyed.
+	 * @since CodenameCrew's Flixel
+	 */
+	public final onDestroy:FlxSignal = new FlxSignal();
+
+	/**
+	 * Whether proximity (distance based volume and pan) is active. Set by `proximity()`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var proximityEnabled(get, set):Bool;
+
+	/**
+	 * Whether proximity also pans the sound.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var proximityPan(get, set):Bool;
+
+	/**
+	 * The object this sound's proximity is measured from.
+	 */
+	public var target(get, set):FlxObject;
+
+	/**
+	 * Maximum distance this sound can be heard from with proximity. Default is 1024.
+	 */
+	public var radius(get, set):Float;
+
+	/**
+	 * How camera scrolling affects this sound's position for proximity. Created by `proximity()`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var scrollFactor(default, null):FlxPoint;
+
+	/**
+	 * Whether the sound is paused (not the same as stopped).
+	 */
+	public var paused(get, never):Bool;
+
+	/**
+	 * Whether the sound played to its end (without looping).
+	 * @since CodenameCrew's Flixel
+	 */
+	public var completed(get, never):Bool;
+
+	/**
+	 * How many times the sound looped since it was last started.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var loopCount(default, null):Int = 0;
+
+	/**
+	 * How many times a looped sound repeats, `-1` (default) loops forever.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var loopUntil(default, set):Int = -1;
+
+	/**
+	 * Whether the pitch follows `FlxG.timeScale`. Defaults to `defaultTimeScaledPitch`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var timeScaledPitch(get, set):Bool;
+
+	/**
+	 * Output latency of the audio device in milliseconds.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var latency(get, never):Float;
+
+	/**
+	 * Peak of each channel (left, right).
+	 * @since CodenameCrew's Flixel
+	 */
+	public var amplitudes(get, never):Array<Float>;
+
+	/**
+	 * The lime audio buffer being played.
+	 * @since CodenameCrew's Flixel
+	 */
+	public var buffer(get, never):AudioBuffer;
+
+	var _proximityEnabled:Bool = false;
+	var _completed:Bool = false;
+	var _timeScaledPitch:Bool = true;
+	var _amplitudes:Array<Float> = [0, 0];
 	
 	/**
 	 * Internal tracker for the loaded sound asset.
@@ -226,7 +322,7 @@ class FlxSound extends FlxBasic
 	 */
 	function resetSound():Void
 	{
-		destroy();
+		__destroy();
 		
 		x = 0;
 		y = 0;
@@ -238,8 +334,13 @@ class FlxSound extends FlxBasic
 		looped = false;
 		loopTime = 0.0;
 		_target = null;
-		_radius = 0;
+		_radius = 1024;
 		_proximityPan = false;
+		_proximityEnabled = false;
+		_completed = false;
+		loopCount = 0;
+		loopUntil = -1;
+		_timeScaledPitch = defaultTimeScaledPitch;
 		visible = false;
 		autoDestroy = false;
 		amplitude = 0;
@@ -269,12 +370,19 @@ class FlxSound extends FlxBasic
 		if (force)
 		{
 			_target = null;
-			_radius = 0;
-			_proximityPan = false;
+			_radius = 1024;
+			_proximityPan = true;
+			_proximityEnabled = false;
+			scrollFactor?.set(0, 0);
 			looped = false;
 			loopTime = 0;
+			loopUntil = -1;
 			endTime = null;
+			_timeScaledPitch = defaultTimeScaledPitch;
 		}
+
+		loopCount = 0;
+		_completed = false;
 
 		offset = 0;
 		_paused = false;
@@ -289,6 +397,19 @@ class FlxSound extends FlxBasic
 	}
 	
 	override public function destroy():Void
+	{
+		onDestroy.dispatch();
+		onDestroy.removeAll();
+		onFinish.removeAll();
+		scrollFactor = flixel.util.FlxDestroyUtil.put(scrollFactor);
+		__destroy();
+	}
+
+	/**
+	 * Releases the source and resets the basic state, without dispatching `onDestroy`
+	 * (used internally when a new sound is loaded).
+	 */
+	function __destroy():Void
 	{
 		// Prevents double destroy
 		if (group != null)
@@ -332,14 +453,31 @@ class FlxSound extends FlxBasic
 		_volumeAdjust = 1.0;
 		
 		// Distance-based volume control
-		if (_target != null)
+		if (_target != null && _proximityEnabled)
 		{
 			final targetPos = _target.getPosition();
-			_volumeAdjust = 1 - FlxMath.bound(targetPos.distanceTo(FlxPoint.weak(x, y)) / _radius, 0, 1);
-			targetPos.put();
+			var soundX = x;
+			var soundY = y;
+
+			// with a scroll factor (CNE proximity), compare screen positions
+			if (scrollFactor != null)
+			{
+				final camera = FlxG.camera;
+				if (camera != null)
+				{
+					targetPos.subtract(camera.scroll.x * _target.scrollFactor.x, camera.scroll.y * _target.scrollFactor.y);
+					soundX -= camera.scroll.x * scrollFactor.x;
+					soundY -= camera.scroll.y * scrollFactor.y;
+				}
+			}
+
+			final radius = _radius > 0 ? _radius : 1;
+			_volumeAdjust = 1 - FlxMath.bound(targetPos.distanceTo(FlxPoint.weak(soundX, soundY)) / radius, 0, 1);
 			
 			if (_proximityPan)
-				pan = FlxMath.bound((x - _target.x) / _radius, -1, 1);
+				pan = FlxMath.bound((soundX - targetPos.x) / radius, -1, 1);
+
+			targetPos.put();
 		}
 		
 		updateVolume();
@@ -352,6 +490,8 @@ class FlxSound extends FlxBasic
 			amplitudeLeft = Math.min(1, _source.getPeak(0) / gain);
 			amplitudeRight = Math.min(1, _source.getPeak(1) / gain);
 			amplitude = (amplitudeLeft + amplitudeRight) * 0.5;
+			_amplitudes[0] = amplitudeLeft;
+			_amplitudes[1] = amplitudeRight;
 		}
 		else
 		{
@@ -380,7 +520,8 @@ class FlxSound extends FlxBasic
 	 * @param	OnComplete		Called when the sound finished playing
 	 * @return	This FlxSound instance (nice for chaining stuff together, if you're into that).
 	 */
-	public function loadEmbedded(EmbeddedSound:FlxSoundAsset, Looped:Bool = false, AutoDestroy:Bool = false, ?OnComplete:Void->Void):FlxSound
+	public function loadEmbedded(EmbeddedSound:FlxSoundAsset, ?Looped:Bool, ?LoopTime:Float, ?EndTime:Float, AutoDestroy:Bool = false,
+			?OnComplete:Void->Void):FlxSound
 	{
 		if (EmbeddedSound == null)
 			return this;
@@ -408,7 +549,59 @@ class FlxSound extends FlxBasic
 				FlxG.log.error('Could not find a Sound asset with an ID of \'$EmbeddedSound\'.');
 		}
 		
-		return init(Looped, AutoDestroy, OnComplete);
+		init(Looped == true, AutoDestroy, OnComplete);
+		if (LoopTime != null)
+			loopTime = LoopTime;
+		if (EndTime != null)
+			endTime = EndTime;
+		return this;
+	}
+
+	/**
+	 * Streams a sound from an asset path or ID, decoding it while it plays
+	 * (Codename Engine API, same arguments as `loadEmbedded`).
+	 */
+	public function loadStreamed(path:String, ?looped:Bool, ?loopTime:Float, ?endTime:Float, autoDestroy:Bool = false, ?onComplete:Void->Void):FlxSound
+	{
+		return loadEmbedded(FlxSoundData.fromAssetKey(path, true), looped, loopTime, endTime, autoDestroy, onComplete);
+	}
+
+	/**
+	 * Loads a sound from a URL or file path (Codename Engine API, see `loadStream`).
+	 */
+	public function loadFromURL(url:String, ?looped:Bool, ?loopTime:Float, ?endTime:Float, autoDestroy:Bool = false, ?onComplete:Void->Void,
+			?onLoad:Void->Void):FlxSound
+	{
+		loadStream(url, looped == true, autoDestroy, onComplete, onLoad);
+		if (loopTime != null)
+			this.loopTime = loopTime;
+		if (endTime != null)
+			this.endTime = endTime;
+		return this;
+	}
+
+	/**
+	 * Stops the sound and releases the loaded audio, keeping this `FlxSound` reusable.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function unload():FlxSound
+	{
+		cleanup(false);
+
+		if (_source != null)
+		{
+			_source.onComplete.remove(stopped);
+			_source.dispose();
+			_source = null;
+		}
+
+		_sound = null;
+		_data = null;
+		alive = false;
+		exists = false;
+		loopTime = 0;
+		endTime = null;
+		return this;
 	}
 	
 	/**
@@ -509,6 +702,8 @@ class FlxSound extends FlxBasic
 		}
 		
 		pitch = 1;
+		_completed = false;
+		loopCount = 0;
 		updateVolume();
 		updatePan();
 		return this;
@@ -525,14 +720,34 @@ class FlxSound extends FlxBasic
 	 * @param	Pan			Whether panning should be used in addition to the volume changes.
 	 * @return	This FlxSound instance (nice for chaining stuff together, if you're into that).
 	 */
-	public function proximity(X:Float, Y:Float, TargetObject:FlxObject, Radius:Float, Pan:Bool = true):FlxSound
+	public function proximity(X:Float = 0, Y:Float = 0, ?TargetObject:FlxObject, ?Radius:Float, Pan:Bool = true, ?ScrollFactor:FlxPoint):FlxSound
 	{
 		x = X;
 		y = Y;
-		_target = TargetObject;
-		_radius = Radius;
+		_proximityEnabled = true;
 		_proximityPan = Pan;
+		if (TargetObject != null)
+			_target = TargetObject;
+		if (Radius != null)
+			_radius = Radius;
+		if (ScrollFactor != null)
+		{
+			if (scrollFactor == null)
+				scrollFactor = FlxPoint.get();
+			scrollFactor.copyFrom(ScrollFactor);
+		}
 		return this;
+	}
+
+	/**
+	 * World position of this sound.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function getPosition(?result:FlxPoint):FlxPoint
+	{
+		if (result == null)
+			result = FlxPoint.get();
+		return result.set(x, y);
 	}
 	
 	/**
@@ -562,6 +777,7 @@ class FlxSound extends FlxBasic
 			
 		if (ForceRestart)
 		{
+			loopCount = 0;
 			startSound(StartTime);
 		}
 		else if (!playing)
@@ -569,7 +785,10 @@ class FlxSound extends FlxBasic
 			if (_paused)
 				resume();
 			else
+			{
+				loopCount = 0;
 				startSound(StartTime);
+			}
 		}
 		
 		return this;
@@ -620,10 +839,10 @@ class FlxSound extends FlxBasic
 	 * @param	Duration	The amount of time the fade-out operation should take.
 	 * @param	To			The volume to tween to, 0 by default.
 	 */
-	public inline function fadeOut(Duration:Float = 1, ?To:Float = 0, ?onComplete:FlxTween->Void):FlxSound
+	public function fadeOut(Duration:Float = 1, ?To:Float = 0, ?onComplete:FlxTween->Void, ?ease:EaseFunction):FlxSound
 	{
 		fadeTween?.cancel();
-		fadeTween = FlxTween.num(volume, To, Duration, {onComplete: onComplete}, (f:Float) -> volume = f);
+		fadeTween = FlxTween.num(volume, To, Duration, {ease: ease ?? FlxEase.quadIn, onComplete: onComplete}, volumeTween);
 		return this;
 	}
 	
@@ -634,14 +853,19 @@ class FlxSound extends FlxBasic
 	 * @param	From		The volume to tween from, 0 by default.
 	 * @param	To			The volume to tween to, 1 by default.
 	 */
-	public inline function fadeIn(Duration:Float = 1, From:Float = 0, To:Float = 1, ?onComplete:FlxTween->Void):FlxSound
+	public function fadeIn(Duration:Float = 1, From:Float = 0, To:Float = 1, ?onComplete:FlxTween->Void, ?ease:EaseFunction):FlxSound
 	{
 		if (!playing)
 			play();
 			
 		fadeTween?.cancel();
-		fadeTween = FlxTween.num(From, To, Duration, {onComplete: onComplete}, (f:Float) -> volume = f);
+		fadeTween = FlxTween.num(From, To, Duration, {ease: ease ?? FlxEase.quadOut, onComplete: onComplete}, volumeTween);
 		return this;
+	}
+
+	function volumeTween(f:Float):Void
+	{
+		volume = f;
 	}
 	
 	/**
@@ -754,9 +978,37 @@ class FlxSound extends FlxBasic
 	public inline function getActualTime():Float
 		return time;
 
-	public inline function getActualVolume():Float
+	public function getActualVolume():Float
 	{
-		return _volume * _volumeAdjust;
+		return _muted ? 0 : (group != null ? group.getVolume() : 1.0) * _volume * _volumeAdjust;
+	}
+
+	/**
+	 * Pitch the source plays at: `pitch`, times `FlxG.timeScale` with `timeScaledPitch`.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function getActualPitch():Float
+	{
+		return _timeScaledPitch ? _pitch * FlxG.timeScale : _pitch;
+	}
+
+	/**
+	 * Pan the source plays at (includes proximity panning).
+	 * @since CodenameCrew's Flixel
+	 */
+	public function getActualPan():Float
+	{
+		return _pan;
+	}
+
+	/**
+	 * Stops every given sound (Codename Engine API).
+	 */
+	public static function stopSounds(sounds:Array<FlxSound>):Void
+	{
+		for (sound in sounds)
+			if (sound != null && sound.exists && sound.playing)
+				sound.stop();
 	}
 	
 	/**
@@ -819,6 +1071,7 @@ class FlxSound extends FlxBasic
 			return;
 			
 		_paused = false;
+		_completed = false;
 		
 		_source.currentTime = StartTime + offset;
 		
@@ -835,11 +1088,18 @@ class FlxSound extends FlxBasic
 	{
 		if (onComplete != null)
 			onComplete();
+		onFinish.dispatch();
 			
-		if (looped)
+		if (looped && (loopUntil < 0 || loopCount < loopUntil))
+		{
+			loopCount++;
 			startSound(loopTime);
+		}
 		else
+		{
+			_completed = true;
 			cleanup(autoDestroy);
+		}
 	}
 	
 	/**
@@ -955,10 +1215,33 @@ class FlxSound extends FlxBasic
 	
 	function set_pitch(v:Float):Float
 	{
+		_pitch = v;
+		updatePitch();
+		return v;
+	}
+
+	/** Codename Engine names for the internal update helpers. */
+	@:noCompletion inline function _updateVolume():Void
+		updateVolume();
+
+	@:noCompletion inline function _updatePan():Void
+		updatePan();
+
+	@:noCompletion inline function _updatePitch():Void
+		updatePitch();
+
+	@:noCompletion function updateTransform():Void
+	{
+		updateVolume();
+		updatePan();
+		updatePitch();
+	}
+
+	@:allow(flixel.system.frontEnds.SoundFrontEnd)
+	function updatePitch():Void
+	{
 		if (_source != null)
-			_source.pitch = v;
-			
-		return _pitch = v;
+			_source.pitch = getActualPitch();
 	}
 	
 	inline function get_pan():Float
@@ -1006,6 +1289,79 @@ class FlxSound extends FlxBasic
 		return value;
 	}
 	
+	inline function get_proximityEnabled():Bool
+		return _proximityEnabled;
+
+	function set_proximityEnabled(value:Bool):Bool
+	{
+		if (!value)
+			_volumeAdjust = 1.0;
+		return _proximityEnabled = value;
+	}
+
+	inline function get_proximityPan():Bool
+		return _proximityPan;
+
+	inline function set_proximityPan(value:Bool):Bool
+		return _proximityPan = value;
+
+	inline function get_target():FlxObject
+		return _target;
+
+	inline function set_target(value:FlxObject):FlxObject
+		return _target = value;
+
+	inline function get_radius():Float
+		return _radius;
+
+	inline function set_radius(value:Float):Float
+		return _radius = value;
+
+	inline function get_paused():Bool
+		return _paused;
+
+	inline function get_completed():Bool
+		return _completed;
+
+	function set_loopUntil(value:Int):Int
+		return loopUntil = value < 0 ? -1 : value;
+
+	inline function get_timeScaledPitch():Bool
+		return _timeScaledPitch;
+
+	function set_timeScaledPitch(value:Bool):Bool
+	{
+		_timeScaledPitch = value;
+		updatePitch();
+		return value;
+	}
+
+	function get_latency():Float
+	{
+		#if lime_miniaudio
+		return AudioManager.engine != null ? AudioManager.engine.get_latency() : 0;
+		#else
+		return 0;
+		#end
+	}
+
+	inline function get_amplitudes():Array<Float>
+		return _amplitudes;
+
+	function get_buffer():AudioBuffer
+	{
+		if (_data != null && _data.buffer != null)
+			return _data.buffer;
+		@:privateAccess
+		return _sound != null ? _sound.__buffer : null;
+	}
+
+	override public function revive():Void
+	{
+		super.revive();
+		reset(true);
+	}
+
 	override public function toString():String
 	{
 		return FlxStringUtil.getDebugString([

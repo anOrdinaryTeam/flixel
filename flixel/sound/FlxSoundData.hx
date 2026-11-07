@@ -29,6 +29,11 @@ class FlxSoundData
 	 */
 	public static var streamMinimumLength:Float = 8000;
 
+	/**
+	 * Sounds shorter than this (in milliseconds) persist in the cache by default.
+	 */
+	public static var persistMaxDuration:Float = 3000;
+
 	static var _cache:Map<String, FlxSoundData> = [];
 	static var _lastUniqueKeyIndex:Int = 0;
 
@@ -195,19 +200,93 @@ class FlxSoundData
 	}
 
 	/**
-	 * Destroys and removes all cached sound data, except the ones marked `persist`.
+	 * Clearing cycle, as in Codename Engine: sound data that is not persistent and
+	 * not in use is marked `unused`, and destroyed on the next cycle if still unused.
 	 */
 	public static function clearCache():Void
 	{
 		for (key in [for (k in _cache.keys()) k])
 		{
 			final data = _cache.get(key);
-			if (data != null && data.persist)
+			if (data == null || data.isDestroyed)
+			{
+				_cache.remove(key);
 				continue;
+			}
+			if (data.unused)
+			{
+				_cache.remove(key);
+				data.destroy();
+			}
+			else if (!data.persist && data.useCount <= 0)
+			{
+				data.unused = true;
+			}
+		}
+	}
+
+	/**
+	 * Destroys every cached sound data, persistent or not.
+	 */
+	public static function resetCache():Void
+	{
+		for (key in [for (k in _cache.keys()) k])
+		{
+			final data = _cache.get(key);
 			_cache.remove(key);
 			if (data != null)
 				data.destroy();
 		}
+	}
+
+	/**
+	 * Destroys cached sound data that is not in use, not persistent and `destroyOnNoUse`.
+	 */
+	public static function clearUnused():Void
+	{
+		for (key in [for (k in _cache.keys()) k])
+		{
+			final data = _cache.get(key);
+			if (data != null && data.useCount <= 0 && !data.persist && data.destroyOnNoUse)
+			{
+				_cache.remove(key);
+				data.destroy();
+			}
+		}
+	}
+
+	/**
+	 * Adds sound data to the cache under its `key`.
+	 */
+	public static function addToCache(data:FlxSoundData):FlxSoundData
+	{
+		if (data != null && data.key != null)
+			_cache.set(data.key, data);
+		return data;
+	}
+
+	/**
+	 * Removes sound data from the cache, destroying it unless `destroy` is false.
+	 */
+	public static function removeFromCache(key:String, destroy = true):Void
+	{
+		if (key == null)
+			return;
+		final data = _cache.get(key);
+		_cache.remove(key);
+		if (destroy && data != null)
+			data.destroy();
+	}
+
+	/**
+	 * Key of the cached sound data using `buffer`, or null.
+	 */
+	public static function findKeyForBuffer(buffer:AudioBuffer):Null<String>
+	{
+		for (key => data in _cache)
+			if (data != null && data.buffer == buffer)
+				return key;
+		return null;
 	}
 
 	static function generateKey():String
@@ -230,9 +309,26 @@ class FlxSoundData
 	public var key(default, null):String;
 
 	/**
-	 * When `true`, `clearCache()` keeps this sound data.
+	 * When `true`, `clearCache()` keeps this sound data. Defaults to `true` for sounds
+	 * shorter than `persistMaxDuration`.
 	 */
 	public var persist:Bool = false;
+
+	/**
+	 * Destroy this sound data as soon as `useCount` drops to zero (unless `persist`).
+	 */
+	public var destroyOnNoUse(default, set):Bool = false;
+
+	/**
+	 * How many `FlxSound`s use this sound data.
+	 */
+	public var useCount(default, null):Int = 0;
+
+	/**
+	 * Marked by a clearing cycle; destroyed on the next one if still unused.
+	 */
+	@:allow(flixel.system.frontEnds.SoundFrontEnd)
+	public var unused(default, null):Bool = false;
 
 	/**
 	 * The lime audio buffer.
@@ -273,8 +369,34 @@ class FlxSoundData
 		this.key = key;
 		this.buffer = buffer;
 		this._path = path;
-		if (persist != null)
-			this.persist = persist;
+		if (persist == null)
+			persist = buffer != null && get_length() < persistMaxDuration;
+		this.persist = persist;
+	}
+
+	public function incrementUseCount():Void
+	{
+		useCount++;
+		unused = false;
+	}
+
+	public function decrementUseCount():Void
+	{
+		useCount--;
+		checkUseCount();
+	}
+
+	function checkUseCount():Void
+	{
+		if (useCount <= 0 && destroyOnNoUse && !persist)
+			destroy();
+	}
+
+	function set_destroyOnNoUse(value:Bool):Bool
+	{
+		destroyOnNoUse = value;
+		checkUseCount();
+		return value;
 	}
 
 	/**

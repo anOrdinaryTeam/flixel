@@ -39,6 +39,11 @@ class FlxDrawTrianglesItem extends FlxDrawBaseItem<FlxDrawTrianglesItem>
 	@:deprecated("colorsPosition is deprecated")
 	public var colorsPosition:Int = 0;
 
+	/**
+	 * Which triangle faces to skip when drawing (Codename Engine API).
+	 */
+	public var culling:TriangleCulling = NONE;
+
 	var bounds:FlxRect = FlxRect.get();
 
 	public function new()
@@ -83,8 +88,11 @@ class FlxDrawTrianglesItem extends FlxDrawBaseItem<FlxDrawTrianglesItem>
 		camera.canvas.graphics.beginBitmapFill(graphics.bitmap, null, true, (camera.antialiasing || antialiasing));
 		#end
 
-		camera.canvas.graphics.drawTriangles(vertices, indices, uvtData, TriangleCulling.NONE);
+		final depthOverride = applyDepthOverride(camera);
+		camera.canvas.graphics.drawTriangles(vertices, indices, uvtData, culling != null ? culling : TriangleCulling.NONE);
 		camera.canvas.graphics.endFill();
+		if (depthOverride)
+			clearDepthOverride(camera);
 
 		#if FLX_DEBUG
 		if (FlxG.debugger.drawDebug)
@@ -101,6 +109,7 @@ class FlxDrawTrianglesItem extends FlxDrawBaseItem<FlxDrawTrianglesItem>
 	override public function reset():Void
 	{
 		super.reset();
+		culling = NONE;
 		vertices.length = 0;
 		indices.length = 0;
 		uvtData.length = 0;

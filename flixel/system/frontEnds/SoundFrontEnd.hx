@@ -10,7 +10,9 @@ import flixel.sound.FlxSoundGroup;
 import flixel.system.FlxAssets;
 import flixel.system.ui.FlxSoundTray;
 import flixel.text.FlxInputText;
+import flixel.sound.FlxSoundData;
 import flixel.util.FlxSignal;
+import lime.media.AudioBuffer;
 import openfl.media.Sound;
 
 /**
@@ -37,7 +39,49 @@ class SoundFrontEnd
 	}
 	#end
 
+	/**
+	 * How many destroyed sounds are kept in `list` for reuse after a state change.
+	 * @since CodenameCrew's Flixel
+	 */
+	public static var poolMaxSounds:Int = 16;
+
 	public var music:FlxSound;
+
+	/**
+	 * Whether `pause()` paused every sound (Codename Engine API).
+	 */
+	public var paused(default, null):Bool = false;
+
+	/**
+	 * Whether sounds pause automatically when the game loses focus (with `FlxG.autoPause`).
+	 * @since CodenameCrew's Flixel
+	 */
+	public var canAutoPause:Bool = true;
+
+	/**
+	 * Whether playback follows the system default output device. Shadow's miniaudio
+	 * backend always does; kept for Codename Engine compatibility.
+	 */
+	public var automaticDefaultDevice(get, set):Bool;
+
+	/**
+	 * Name of the output device. Shadow's miniaudio backend does not expose device
+	 * selection, so this is always null; kept for Codename Engine compatibility.
+	 */
+	public var deviceName(get, set):String;
+
+	/**
+	 * Device change signals, kept for Codename Engine compatibility. Shadow's miniaudio
+	 * backend switches to the new default device by itself and does not report it.
+	 */
+	public var onDefaultDeviceChanged(default, null):FlxTypedSignal<String->Void> = new FlxTypedSignal<String->Void>();
+
+	public var onDeviceAdded(default, null):FlxTypedSignal<String->Void> = new FlxTypedSignal<String->Void>();
+
+	public var onDeviceRemoved(default, null):FlxTypedSignal<String->Void> = new FlxTypedSignal<String->Void>();
+
+	var _lastTimeScale:Float = 1.0;
+	var _lostFocusPause:Bool = false;
 
 	/**
 	 * Whether or not the game sounds are muted.
@@ -308,6 +352,8 @@ class SoundFrontEnd
 				sound.pause();
 			}
 		}
+
+		paused = true;
 	}
 
 	/**
@@ -327,6 +373,8 @@ class SoundFrontEnd
 				sound.resume();
 			}
 		}
+
+		paused = false;
 	}
 
 	/**
@@ -342,13 +390,28 @@ class SoundFrontEnd
 			music = null;
 		}
 
-		for (sound in list.members)
+		// destroy sounds, keeping at most `poolMaxSounds` destroyed ones for reuse
+		var kept = 0;
+		var i = list.members.length;
+		while (i-- > 0)
 		{
-			if (sound != null && (forceDestroy || !sound.persist))
+			final sound = list.members[i];
+			if (sound == null)
+			{
+				list.members.splice(i, 1);
+			}
+			else if (forceDestroy || !sound.persist)
 			{
 				sound.destroy();
+				if (kept < poolMaxSounds)
+					kept++;
+				else
+					list.members.splice(i, 1);
 			}
 		}
+
+		// members were spliced directly, keep the group's counter in sync
+		@:privateAccess list.length = list.members.length;
 	}
 
 	/**
@@ -412,12 +475,78 @@ class SoundFrontEnd
 	}
 
 	/**
-	 * Removes every cached sound from the OpenFL asset cache.
+	 * Whether sound data with this key is cached.
+	 * @since CodenameCrew's Flixel
+	 */
+	public inline function checkCache(key:String):Bool
+	{
+		return getCache(key) != null;
+	}
+
+	/**
+	 * Removes cached sound data (and its OpenFL cached sound), destroying it unless `destroy` is false.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function removeCache(key:String, destroy = true):Void
+	{
+		if (key == null)
+			return;
+		FlxSoundData.removeFromCache(key, destroy);
+		openfl.utils.Assets.cache.removeSound(key);
+	}
+
+	/**
+	 * Caches the given sound data under its key.
+	 * @since CodenameCrew's Flixel
+	 */
+	public inline function addCache(soundData:FlxSoundData):FlxSoundData
+	{
+		return FlxSoundData.addToCache(soundData);
+	}
+
+	/**
+	 * Cached sound data with this key, or null.
+	 * @since CodenameCrew's Flixel
+	 */
+	public inline function getCache(key:String):FlxSoundData
+	{
+		return FlxSoundData.getCached(key);
+	}
+
+	/**
+	 * One clearing cycle: unused, non-persistent sound data is destroyed on the second cycle.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function clearCache():Void
+	{
+		FlxSoundData.clearCache();
+	}
+
+	/**
+	 * Destroys unused sound data that has `destroyOnNoUse` set.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function clearUnused():Void
+	{
+		FlxSoundData.clearUnused();
+	}
+
+	/**
+	 * Key of the cached sound data using `buffer`, or null.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function findKeyForBuffer(buffer:AudioBuffer):Null<String>
+	{
+		return FlxSoundData.findKeyForBuffer(buffer);
+	}
+
+	/**
+	 * Destroys ALL cached sound data and removes every sound from the OpenFL asset cache.
 	 * @since CodenameCrew's Flixel
 	 */
 	public function resetCache():Void
 	{
-		flixel.sound.FlxSoundData.clearCache();
+		FlxSoundData.resetCache();
 
 		var cache = Std.downcast(openfl.utils.Assets.cache, openfl.utils.AssetCache);
 		if (cache == null || cache.sound == null) return;
@@ -480,11 +609,25 @@ class SoundFrontEnd
 	@:allow(flixel.FlxGame)
 	function update(elapsed:Float):Void
 	{
-		if (music != null && music.active)
-			music.update(elapsed);
+		if (!paused)
+		{
+			// pitch follows FlxG.timeScale for sounds with timeScaledPitch
+			if (_lastTimeScale != FlxG.timeScale)
+			{
+				_lastTimeScale = FlxG.timeScale;
+				if (music != null && music.exists)
+					@:privateAccess music.updatePitch();
+				for (sound in list.members)
+					if (sound != null && sound.exists)
+						@:privateAccess sound.updatePitch();
+			}
 
-		if (list != null && list.active)
-			list.update(elapsed);
+			if (music != null && music.active)
+				music.update(elapsed);
+
+			if (list != null && list.active)
+				list.update(elapsed);
+		}
 
 		#if FLX_KEYBOARD
 		if (keysAllowed && !FlxInputText.globalManager.isTyping)
@@ -502,6 +645,10 @@ class SoundFrontEnd
 	@:allow(flixel.FlxGame)
 	function onFocusLost():Void
 	{
+		_lostFocusPause = canAutoPause;
+		if (!_lostFocusPause)
+			return;
+
 		if (music != null)
 		{
 			music.onFocusLost();
@@ -519,6 +666,10 @@ class SoundFrontEnd
 	@:allow(flixel.FlxGame)
 	function onFocus():Void
 	{
+		if (!_lostFocusPause)
+			return;
+		_lostFocusPause = false;
+
 		if (music != null)
 		{
 			music.onFocus();
@@ -553,6 +704,33 @@ class SoundFrontEnd
 		}
 	}
 	#end
+
+	inline function get_automaticDefaultDevice():Bool
+		return true;
+
+	function set_automaticDefaultDevice(value:Bool):Bool
+		return true;
+
+	inline function get_deviceName():String
+		return null;
+
+	function set_deviceName(value:String):String
+	{
+		FlxG.log.warn("FlxG.sound.deviceName: choosing an output device is not supported by the miniaudio backend.");
+		return null;
+	}
+
+	/**
+	 * Re-applies the volume of every sound (Codename Engine API).
+	 */
+	public function updateVolume():Void
+	{
+		if (music != null)
+			@:privateAccess music.updateVolume();
+		for (sound in list.members)
+			if (sound != null)
+				@:privateAccess sound.updateVolume();
+	}
 
 	@:haxe.warning("-WDeprecated")
 	function set_volume(Volume:Float):Float
