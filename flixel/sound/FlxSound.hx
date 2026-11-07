@@ -10,6 +10,7 @@ import flixel.tweens.FlxTween;
 import flixel.util.FlxSignal;
 import flixel.util.FlxStringUtil;
 import lime.media.AudioBuffer;
+import lime.media.AudioEffect;
 import lime.media.AudioManager;
 import lime.media.AudioSource;
 import openfl.events.Event;
@@ -256,6 +257,11 @@ class FlxSound extends FlxBasic
 	 * Internal tracker for a lime audio source object.
 	 */
 	var _source:AudioSource;
+
+	/**
+	 * Effects of this sound, kept across sources so a newly loaded sound gets them too.
+	 */
+	var _effects:Array<AudioEffect> = [];
 	
 	/**
 	 * Internal tracker for whether the sound is paused or not (not the same as stopped).
@@ -379,6 +385,7 @@ class FlxSound extends FlxBasic
 			loopUntil = -1;
 			endTime = null;
 			_timeScaledPitch = defaultTimeScaledPitch;
+			clearEffects();
 		}
 
 		loopCount = 0;
@@ -402,6 +409,7 @@ class FlxSound extends FlxBasic
 		onDestroy.removeAll();
 		onFinish.removeAll();
 		scrollFactor = flixel.util.FlxDestroyUtil.put(scrollFactor);
+		clearEffects();
 		__destroy();
 	}
 
@@ -428,6 +436,7 @@ class FlxSound extends FlxBasic
 		if (_source != null)
 		{
 			_source.onComplete.remove(stopped);
+			_detachEffects();
 			_source.dispose();
 			_source = null;
 		}
@@ -591,6 +600,7 @@ class FlxSound extends FlxBasic
 		if (_source != null)
 		{
 			_source.onComplete.remove(stopped);
+			_detachEffects();
 			_source.dispose();
 			_source = null;
 		}
@@ -699,6 +709,8 @@ class FlxSound extends FlxBasic
 			@:privateAccess
 			_source = new AudioSource(_sound.__buffer);
 			_source.onComplete.add(stopped);
+			for (effect in _effects)
+				_source.addEffect(effect);
 		}
 		
 		pitch = 1;
@@ -743,6 +755,81 @@ class FlxSound extends FlxBasic
 	 * World position of this sound.
 	 * @since CodenameCrew's Flixel
 	 */
+	/**
+	 * Adds an audio effect at the end of this sound's effect chain.
+	 * It stays on this sound when another sound is loaded into it.
+	 * @param	effect	A `lime.media.AudioEffect` instance.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function addEffect(effect:AudioEffect):Void
+	{
+		if (effect == null || _effects.contains(effect))
+			return;
+
+		_effects.push(effect);
+		if (_source != null)
+			_source.addEffect(effect);
+	}
+
+	/**
+	 * Removes an audio effect from this sound.
+	 * @param	effect	A `lime.media.AudioEffect` instance.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function removeEffect(effect:AudioEffect):Void
+	{
+		if (effect == null || !_effects.remove(effect))
+			return;
+
+		if (_source != null)
+			_source.removeEffect(effect);
+	}
+
+	/**
+	 * Removes every audio effect from this sound.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function clearEffects():Void
+	{
+		for (effect in _effects.copy())
+			removeEffect(effect);
+	}
+
+	/**
+	 * @param	index	An index in this sound's effect chain.
+	 * @return	The `lime.media.AudioEffect` at `index`, or null.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function getEffectAt(index:Int):AudioEffect
+	{
+		return index >= 0 && index < _effects.length ? _effects[index] : null;
+	}
+
+	/**
+	 * @param	effect	A `lime.media.AudioEffect` instance.
+	 * @return	The index of `effect` in this sound's effect chain, or -1.
+	 * @since CodenameCrew's Flixel
+	 */
+	public function getEffectIndex(effect:AudioEffect):Int
+	{
+		return _effects.indexOf(effect);
+	}
+
+	/**
+	 * Unlinks the current source from this sound's effects before it is disposed,
+	 * without disposing the effects themselves.
+	 */
+	function _detachEffects():Void
+	{
+		for (effect in _effects)
+		{
+			final autoDispose = effect.autoDispose;
+			effect.autoDispose = false;
+			_source.removeEffect(effect);
+			effect.autoDispose = autoDispose;
+		}
+	}
+
 	public function getPosition(?result:FlxPoint):FlxPoint
 	{
 		if (result == null)

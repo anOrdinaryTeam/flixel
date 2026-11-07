@@ -13,6 +13,7 @@ import flixel.text.FlxInputText;
 import flixel.sound.FlxSoundData;
 import flixel.util.FlxSignal;
 import lime.media.AudioBuffer;
+import lime.media.AudioManager;
 import openfl.media.Sound;
 
 /**
@@ -706,18 +707,21 @@ class SoundFrontEnd
 	#end
 
 	inline function get_automaticDefaultDevice():Bool
-		return true;
+		return AudioManager.automaticDefaultPlaybackDevice;
 
 	function set_automaticDefaultDevice(value:Bool):Bool
-		return true;
+		return AudioManager.automaticDefaultPlaybackDevice = value;
 
 	inline function get_deviceName():String
-		return null;
+		return AudioManager.getCurrentPlaybackDeviceName();
 
 	function set_deviceName(value:String):String
 	{
+		if (AudioManager.refresh(value))
+			return value;
+
 		FlxG.log.warn("FlxG.sound.deviceName: choosing an output device is not supported by the miniaudio backend.");
-		return null;
+		return AudioManager.getCurrentPlaybackDeviceName();
 	}
 
 	/**
