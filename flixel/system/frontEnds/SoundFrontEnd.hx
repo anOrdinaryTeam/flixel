@@ -60,20 +60,19 @@ class SoundFrontEnd
 	public var canAutoPause:Bool = true;
 
 	/**
-	 * Whether playback follows the system default output device. Shadow's miniaudio
-	 * backend always does; kept for Codename Engine compatibility.
+	 * Whether playback follows the system default output device.
+	 * Turning it on moves playback back to the default device.
 	 */
 	public var automaticDefaultDevice(get, set):Bool;
 
 	/**
-	 * Name of the output device. Shadow's miniaudio backend does not expose device
-	 * selection, so this is always null; kept for Codename Engine compatibility.
+	 * Name of the output device. Setting it moves playback to that device, or back to
+	 * the default one if it cannot be opened. See `lime.media.AudioManager.getPlaybackDeviceNames()`.
 	 */
 	public var deviceName(get, set):String;
 
 	/**
-	 * Device change signals, kept for Codename Engine compatibility. Shadow's miniaudio
-	 * backend switches to the new default device by itself and does not report it.
+	 * Dispatched with the device name when the default output device changes.
 	 */
 	public var onDefaultDeviceChanged(default, null):FlxTypedSignal<String->Void> = new FlxTypedSignal<String->Void>();
 
@@ -599,6 +598,10 @@ class SoundFrontEnd
 	
 	function new()
 	{
+		AudioManager.onDefaultPlaybackDeviceChanged.add(onDefaultDeviceChanged.dispatch);
+		AudioManager.onPlaybackDeviceAdded.add(onDeviceAdded.dispatch);
+		AudioManager.onPlaybackDeviceRemoved.add(onDeviceRemoved.dispatch);
+
 		#if FLX_SAVE
 		loadSavedPrefs();
 		#end
@@ -710,17 +713,28 @@ class SoundFrontEnd
 		return AudioManager.automaticDefaultPlaybackDevice;
 
 	function set_automaticDefaultDevice(value:Bool):Bool
-		return AudioManager.automaticDefaultPlaybackDevice = value;
+	{
+		if (AudioManager.automaticDefaultPlaybackDevice != value)
+		{
+			AudioManager.automaticDefaultPlaybackDevice = value;
+			if (value && AudioManager.getCurrentPlaybackDeviceName() != AudioManager.getPlaybackDefaultDeviceName())
+				AudioManager.refresh();
+		}
+		return value;
+	}
 
 	inline function get_deviceName():String
 		return AudioManager.getCurrentPlaybackDeviceName();
 
 	function set_deviceName(value:String):String
 	{
+		if (AudioManager.getCurrentPlaybackDeviceName() == value)
+			return value;
+
 		if (AudioManager.refresh(value))
 			return value;
 
-		FlxG.log.warn("FlxG.sound.deviceName: choosing an output device is not supported by the miniaudio backend.");
+		AudioManager.refresh();
 		return AudioManager.getCurrentPlaybackDeviceName();
 	}
 
