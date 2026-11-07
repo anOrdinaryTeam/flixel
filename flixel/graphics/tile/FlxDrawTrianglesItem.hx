@@ -252,6 +252,120 @@ class FlxDrawTrianglesItem extends FlxDrawBaseItem<FlxDrawTrianglesItem>
 
 	}
 
+	/**
+	 * Like `addTriangles`, but colors the triangles with a list of color transforms
+	 * spread evenly over the indices (Codename Engine API, used by FunkinModchart for
+	 * holds and arrow paths). `colors`, when given, additionally tints per vertex (ARGB).
+	 */
+	public function addColoredTriangles(vertices:DrawData<Float>, indices:DrawData<Int>, uvtData:DrawData<Float>, ?colors:DrawData<Int>,
+			?position:FlxPoint, ?cameraBounds:FlxRect, ?transforms:Array<ColorTransform>):Void
+	{
+		if (position == null)
+			position = point.set();
+
+		if (cameraBounds == null)
+			cameraBounds = rect.set(0, 0, FlxG.width, FlxG.height);
+
+		var verticesLength:Int = vertices.length;
+		var prevVerticesLength:Int = this.vertices.length;
+		var prevIndicesLength:Int = this.indices.length;
+		var prevUVTDataLength:Int = this.uvtData.length;
+		var prevNumberOfVertices:Int = this.numVertices;
+
+		var tempX:Float, tempY:Float;
+		var i:Int = 0;
+		var currentVertexPosition:Int = prevVerticesLength;
+
+		while (i < verticesLength)
+		{
+			tempX = position.x + vertices[i];
+			tempY = position.y + vertices[i + 1];
+
+			this.vertices[currentVertexPosition++] = tempX;
+			this.vertices[currentVertexPosition++] = tempY;
+
+			if (i == 0)
+				bounds.set(tempX, tempY, 0, 0);
+			else
+				inflateBounds(bounds, tempX, tempY);
+
+			i += 2;
+		}
+
+		var indicesLength:Int = indices.length;
+		if (!cameraBounds.overlaps(bounds))
+		{
+			this.vertices.splice(this.vertices.length - verticesLength, verticesLength);
+		}
+		else
+		{
+			var uvtDataLength:Int = uvtData.length;
+			for (i in 0...uvtDataLength)
+				this.uvtData[prevUVTDataLength + i] = uvtData[i];
+
+			for (i in 0...indicesLength)
+				this.indices[prevIndicesLength + i] = indices[i] + prevNumberOfVertices;
+
+			final transformCount = transforms != null ? transforms.length : 0;
+			final perVertexColor = colors != null && colors.length > 0;
+			final writeColors = colored || hasColorOffsets;
+
+			if (writeColors)
+			{
+				if (colorMultipliers == null)
+					colorMultipliers = [];
+
+				if (colorOffsets == null)
+					colorOffsets = [];
+			}
+
+			var an:Int = alphas.length;
+			var mn:Int = writeColors ? colorMultipliers.length : 0;
+			var on:Int = writeColors ? colorOffsets.length : 0;
+
+			for (i in 0...indicesLength)
+			{
+				final transform = transformCount > 0 ? transforms[Std.int(i * transformCount / indicesLength)] : null;
+				final vertexColor:Int = perVertexColor ? colors[indices[i]] : 0xFFFFFFFF;
+
+				var alpha = transform != null ? transform.alphaMultiplier : 1.0;
+				if (perVertexColor)
+					alpha *= ((vertexColor >> 24) & 0xFF) / 255;
+				alphas[an++] = alpha;
+
+				if (writeColors)
+				{
+					var rm = transform != null ? transform.redMultiplier : 1.0;
+					var gm = transform != null ? transform.greenMultiplier : 1.0;
+					var bm = transform != null ? transform.blueMultiplier : 1.0;
+
+					if (perVertexColor)
+					{
+						rm *= ((vertexColor >> 16) & 0xFF) / 255;
+						gm *= ((vertexColor >> 8) & 0xFF) / 255;
+						bm *= (vertexColor & 0xFF) / 255;
+					}
+
+					colorMultipliers[mn++] = rm;
+					colorMultipliers[mn++] = gm;
+					colorMultipliers[mn++] = bm;
+					colorMultipliers[mn++] = 1;
+
+					colorOffsets[on++] = transform != null ? transform.redOffset : 0.0;
+					colorOffsets[on++] = transform != null ? transform.greenOffset : 0.0;
+					colorOffsets[on++] = transform != null ? transform.blueOffset : 0.0;
+					colorOffsets[on++] = transform != null ? transform.alphaOffset : 0.0;
+				}
+			}
+
+			verticesPosition += verticesLength;
+			indicesPosition += indicesLength;
+		}
+
+		position.putWeak();
+		cameraBounds.putWeak();
+	}
+
 	inline function setParameterValue(parameter:ShaderParameter<Bool>, value:Bool):Void
 	{
 		if (parameter.value == null)
