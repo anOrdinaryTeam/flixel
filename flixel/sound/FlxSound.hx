@@ -356,7 +356,7 @@ class FlxSound extends FlxBasic
 		name = null;
 		artist = null;
 		_tagsRead = false;
-		_data = null;
+		_releaseData();
 		offset = 0;
 		_muted = false;
 	}
@@ -411,6 +411,8 @@ class FlxSound extends FlxBasic
 		scrollFactor = flixel.util.FlxDestroyUtil.put(scrollFactor);
 		clearEffects();
 		__destroy();
+		// after __destroy disposed the source using its buffer
+		_releaseData();
 	}
 
 	/**
@@ -539,8 +541,7 @@ class FlxSound extends FlxBasic
 		
 		if ((EmbeddedSound is FlxSoundData))
 		{
-			_data = EmbeddedSound;
-			_sound = _data.sound;
+			_useData(EmbeddedSound);
 		}
 		else if ((EmbeddedSound is Sound))
 		{
@@ -552,7 +553,24 @@ class FlxSound extends FlxBasic
 		}
 		else if ((EmbeddedSound is String))
 		{
-			if (FlxG.assets.exists(EmbeddedSound, SOUND))
+			// like Codename Engine: through FlxSoundData, so long sounds (songs) are streamed
+			// instead of decoded whole into memory
+			var data = FlxSoundData.fromAsset(EmbeddedSound);
+			var ownStream = false;
+			if (data != null && data.isStreamable && data.useCount > 0)
+			{
+				// a stream is one decoder: another sound already plays this one, so open our own
+				data = FlxSoundData.fromAssetKey(EmbeddedSound, true, null, false);
+				ownStream = true;
+			}
+			if (data != null && !data.isDestroyed)
+			{
+				_useData(data);
+				// not cached: freed once this sound lets go of it (after the use is counted)
+				if (ownStream)
+					data.destroyOnNoUse = true;
+			}
+			else if (FlxG.assets.exists(EmbeddedSound, SOUND))
 				_sound = FlxG.assets.getSoundUnsafe(EmbeddedSound);
 			else
 				FlxG.log.error('Could not find a Sound asset with an ID of \'$EmbeddedSound\'.');
@@ -606,7 +624,7 @@ class FlxSound extends FlxBasic
 		}
 
 		_sound = null;
-		_data = null;
+		_releaseData();
 		alive = false;
 		exists = false;
 		loopTime = 0;
@@ -974,13 +992,49 @@ class FlxSound extends FlxBasic
 
 	var _data:FlxSoundData;
 
+	/**
+	 * Whether this sound counts as a use of `_data` (see `FlxSoundData.useCount`).
+	 */
+	var _dataCounted:Bool = false;
+
 	function get_data():FlxSoundData
 	{
 		if (_sound == null)
 			return null;
 		if (_data == null || _data.isDestroyed || _data.sound != _sound)
+		{
+			_releaseData();
+			// uncached wrapper of a plain Sound: not counted
 			_data = FlxSoundData.fromSound(_sound, null, false);
+		}
 		return _data;
+	}
+
+	/**
+	 * Plays `data` and counts this sound as one of its uses, so the sound data
+	 * cache keeps it while it is loaded here.
+	 */
+	function _useData(data:FlxSoundData):Void
+	{
+		_releaseData();
+		_data = data;
+		_sound = data.sound;
+		data.incrementUseCount();
+		_dataCounted = true;
+	}
+
+	/**
+	 * Drops `_data`, giving back its use. Call it after the source using its buffer is gone:
+	 * data that is no longer used may be destroyed right away.
+	 */
+	function _releaseData():Void
+	{
+		final data = _data;
+		final counted = _dataCounted;
+		_data = null;
+		_dataCounted = false;
+		if (counted && data != null && !data.isDestroyed)
+			data.decrementUseCount();
 	}
 
 	/**
