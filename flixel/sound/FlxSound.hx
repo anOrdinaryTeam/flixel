@@ -908,8 +908,8 @@ class FlxSound extends FlxBasic
 			return this;
 			
 		_paused = false;
-		_source.play();
 		active = true;
+		_playSource();
 		
 		return this;
 	}
@@ -1098,7 +1098,7 @@ class FlxSound extends FlxBasic
 			toPlay.push(sound);
 		}
 		for (sound in toPlay)
-			sound._source.play();
+			sound._playSource();
 	}
 
 	/**
@@ -1216,9 +1216,39 @@ class FlxSound extends FlxBasic
 		
 		_source.currentTime = StartTime + offset;
 		
-		_source.play();
-		
 		active = true;
+		_playSource();
+	}
+
+	/**
+	 * Whether the game is paused for focus loss (`FlxG.autoPause`). Sounds do not start
+	 * meanwhile: a `play()` or `resume()` then waits for focus to come back, so nothing
+	 * (a script, a resync, a thread) can bring a sound back while the game is unfocused.
+	 */
+	static inline function _heldByFocusLoss():Bool
+	{
+		#if FLX_SOUND_SYSTEM
+		return FlxG.sound != null && @:privateAccess FlxG.sound._lostFocusPause;
+		#else
+		return false;
+		#end
+	}
+
+	/**
+	 * Starts the source, unless the game is paused for focus loss: then the sound stays
+	 * paused and resumes with the others when focus comes back.
+	 */
+	function _playSource():Void
+	{
+		if (_heldByFocusLoss())
+		{
+			_paused = true;
+			active = false;
+			_resumeOnFocus = true;
+			return;
+		}
+
+		_source.play();
 	}
 	
 	/**
@@ -1311,8 +1341,13 @@ class FlxSound extends FlxBasic
 	@:allow(flixel.system.frontEnds.SoundFrontEnd)
 	function onFocusLost():Void
 	{
-		_resumeOnFocus = playing;
+		// a sound can be both FlxG.sound.music and in FlxG.sound.list: don't let the second call forget it
+		if (playing)
+			_resumeOnFocus = true;
 		pause();
+		// stop the source even if it did not report playing
+		if (_source != null)
+			_source.pause();
 	}
 	#end
 	
