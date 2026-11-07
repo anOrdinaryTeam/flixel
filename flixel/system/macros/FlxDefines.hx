@@ -312,7 +312,7 @@ class FlxDefines
 		else // define boolean inversion
 			define(FLX_STANDARD_ASSETS_DIRECTORY);
 
-		#if (lime_funkin || lime_vorbis)
+		#if (lime_shadow || lime_funkin || lime_vorbis)
 		define(FLX_STREAM_SOUND);
 		#end
 		define(FLX_CNE_FORK);
