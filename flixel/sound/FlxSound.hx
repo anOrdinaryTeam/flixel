@@ -101,6 +101,20 @@ class FlxSound extends FlxBasic
 	 * Set pitch, which also alters the playback speed. Default is 1.
 	 */
 	public var pitch(get, set):Float;
+
+	/**
+	 * Whether this sound is muted, independent of `volume` (Codename Engine API).
+	 */
+	public var muted(get, set):Bool;
+
+	/**
+	 * Offset in milliseconds between the source's timeline and `time`: `time` 0 plays the
+	 * source from `offset`. `length`, `loopTime` and `endTime` are relative to it as well
+	 * (Codename Engine API).
+	 */
+	public var offset:Float = 0;
+
+	var _muted:Bool = false;
 	
 	/**
 	 * The position in runtime of the music playback in milliseconds.
@@ -203,13 +217,14 @@ class FlxSound extends FlxBasic
 	public function new()
 	{
 		super();
-		reset();
+		resetSound();
 	}
 	
 	/**
 	 * An internal function for clearing all the variables used by sounds.
+	 * Unloads the sound; see `reset` for a reset that keeps it loaded.
 	 */
-	function reset():Void
+	function resetSound():Void
 	{
 		destroy();
 		
@@ -235,6 +250,42 @@ class FlxSound extends FlxBasic
 		artist = null;
 		_tagsRead = false;
 		_data = null;
+		offset = 0;
+		_muted = false;
+	}
+
+	/**
+	 * Stops the sound and resets its playback properties (volume, pan, pitch,
+	 * offset, mute) while keeping the loaded sound (Codename Engine API).
+	 * @param	force	Also reset looping, end time and proximity settings.
+	 */
+	public function reset(force = false):Void
+	{
+		autoDestroy = false;
+		stop();
+
+		x = y = 0;
+
+		if (force)
+		{
+			_target = null;
+			_radius = 0;
+			_proximityPan = false;
+			looped = false;
+			loopTime = 0;
+			endTime = null;
+		}
+
+		offset = 0;
+		_paused = false;
+		_volume = 1.0;
+		_volumeAdjust = 1.0;
+		_muted = false;
+		_pan = 0;
+		pitch = 1;
+
+		updateVolume();
+		updatePan();
 	}
 	
 	override public function destroy():Void
@@ -649,7 +700,7 @@ class FlxSound extends FlxBasic
 
 		if (_source.playing)
 			_source.pause();
-		_source.currentTime = startTime;
+		_source.currentTime = startTime + offset;
 		_paused = true;
 		active = false;
 
@@ -733,6 +784,9 @@ class FlxSound extends FlxBasic
 	
 	function calcTransformVolume():Float
 	{
+		if (_muted)
+			return 0.0;
+
 		final volume = (group != null ? group.getVolume() : 1.0) * _volume * _volumeAdjust;
 		
 		#if FLX_SOUND_SYSTEM
@@ -756,7 +810,7 @@ class FlxSound extends FlxBasic
 			
 		_paused = false;
 		
-		_source.currentTime = StartTime;
+		_source.currentTime = StartTime + offset;
 		
 		_source.play();
 		
@@ -791,7 +845,7 @@ class FlxSound extends FlxBasic
 	{
 		if (destroySound)
 		{
-			reset();
+			resetSound();
 			return;
 		}
 		
@@ -911,20 +965,35 @@ class FlxSound extends FlxBasic
 	
 	inline function get_time():Float
 	{
-		return _source != null ? _source.currentTime : 0;
+		return _source != null ? _source.currentTime - offset : 0;
 	}
 	
 	function set_time(time:Float):Float
 	{
 		if (_source != null)
-			_source.currentTime = time;
+			_source.currentTime = time + offset;
 			
 		return time;
 	}
 	
 	inline function get_length():Float
 	{
-		return _source != null ? _source.length : 0;
+		return _source != null ? _source.length - offset : 0;
+	}
+
+	inline function get_muted():Bool
+	{
+		return _muted;
+	}
+
+	function set_muted(value:Bool):Bool
+	{
+		if (_muted != value)
+		{
+			_muted = value;
+			updateVolume();
+		}
+		return value;
 	}
 	
 	override public function toString():String
