@@ -58,7 +58,8 @@ class FlxDrawTrianglesItem extends FlxDrawBaseItem<FlxDrawTrianglesItem>
 		shader.bitmap.input = graphics.bitmap;
 		shader.bitmap.filter = (camera.antialiasing || antialiasing) ? LINEAR : NEAREST;
 		shader.bitmap.blendTarget = blendTarget;
-		shader.bitmap.wrap = REPEAT; // in order to prevent breaking tiling behaviour in classes that use drawTriangles
+		// REPEAT by default in order to prevent breaking tiling behaviour in classes that use drawTriangles
+		shader.bitmap.wrap = wrapMode != null ? wrapMode : REPEAT;
 		shader.alpha.value = alphas;
 
 		if (colored || hasColorOffsets)

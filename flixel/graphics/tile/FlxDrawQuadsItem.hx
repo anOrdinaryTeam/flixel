@@ -121,6 +121,7 @@ class FlxDrawQuadsItem extends FlxDrawBaseItem<FlxDrawQuadsItem>
 		shader.bitmap.input = graphics.bitmap;
 		shader.bitmap.filter = (camera.antialiasing || antialiasing) ? LINEAR : NEAREST;
 		shader.bitmap.blendTarget = blendTarget;
+		shader.bitmap.wrap = wrapMode != null ? wrapMode : CLAMP;
 		shader.alpha.value = alphas;
 
 		if (colored || hasColorOffsets)

@@ -1090,7 +1090,10 @@ class FlxText extends FlxSprite
 
 		doAdditionalMatrixStuff(_matrix, camera);
 		
-		camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget);
+		if (layer != null)
+			layer.drawPixels(this, camera, _frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget, wrapMode);
+		else
+			camera.drawPixels(_frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget, wrapMode);
 	}
 
 	/**

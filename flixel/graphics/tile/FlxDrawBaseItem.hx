@@ -5,6 +5,7 @@ import flixel.graphics.frames.FlxFrame;
 import flixel.math.FlxMatrix;
 import openfl.display.BlendMode;
 import openfl.display3D.Context3DBlendTarget;
+import openfl.display3D.Context3DWrapMode;
 import openfl.geom.ColorTransform;
 import flixel.system.FlxAssets.FlxShader;
 
@@ -36,6 +37,12 @@ class FlxDrawBaseItem<T>
 	public var blend:BlendMode;
 	public var blendTarget:Context3DBlendTarget = Context3DBlendTarget.BlendRenderTarget;
 
+	/**
+	 * Texture wrapping for this batch. `null` keeps the item's default
+	 * (`CLAMP` for quads, `REPEAT` for triangles).
+	 */
+	public var wrapMode:Null<Context3DWrapMode> = null;
+
 	@:noCompletion
 	@:deprecated("blending is deprecated, remove all references to it")
 	public var blending:Int = 0;
@@ -54,6 +61,7 @@ class FlxDrawBaseItem<T>
 	{
 		graphics = null;
 		antialiasing = false;
+		wrapMode = null;
 		nextTyped = null;
 		next = null;
 	}

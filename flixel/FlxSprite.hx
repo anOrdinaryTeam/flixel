@@ -324,6 +324,12 @@ class FlxSprite extends FlxObject
     public var wrapMode:Context3DWrapMode;
 
 	/**
+	 * Layer to draw on. When set, this sprite's quads are batched on the layer
+	 * and drawn where the layer is drawn (see `FlxLayer`).
+	 */
+	public var layer:FlxLayer;
+
+	/**
 	 * Clipping rectangle for this sprite.
 	 * Changing the rect's properties directly doesn't have any effect,
 	 * reassign the property to update it (`sprite.rawClipRect = sprite.rawClipRect;`).
@@ -507,6 +513,7 @@ class FlxSprite extends FlxObject
 		_frameGraphic = FlxDestroyUtil.destroy(_frameGraphic);
 
 		shader = null;
+		layer = null;
 	}
 
 	public function clone():FlxSprite
@@ -1018,7 +1025,10 @@ class FlxSprite extends FlxObject
 
 		doAdditionalMatrixStuff(_matrix, camera);
 
-		camera.drawPixels(frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget);
+		if (layer != null)
+			layer.drawPixels(this, camera, frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget, wrapMode);
+		else
+			camera.drawPixels(frame, framePixels, _matrix, colorTransform, blend, antialiasing, shaderEnabled ? shader : null, blendTarget, wrapMode);
 	}
 
 	/**
