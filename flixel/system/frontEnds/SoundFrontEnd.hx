@@ -22,6 +22,21 @@ class SoundFrontEnd
 	/**
 	 * A handy container for a background music object.
 	 */
+	#if FLX_SAVE
+	/**
+	 * Where sound preferences (volume, mute) are saved; `FlxG.save` unless set
+	 * to another bound save (Codename Engine API).
+	 */
+	public static var save(get, null):flixel.util.FlxSave;
+
+	static function get_save():flixel.util.FlxSave
+	{
+		if (save == null || !save.isBound)
+			save = FlxG.save;
+		return save;
+	}
+	#end
+
 	public var music:FlxSound;
 
 	/**

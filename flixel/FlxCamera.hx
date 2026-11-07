@@ -1199,10 +1199,16 @@ class FlxCamera extends FlxBasic
 	/**
 	 * Updates the camera scroll as well as special effects like screen-shake or fades.
 	 */
+	/**
+	 * Pauses following and screen effects (flash, fade, shake) without
+	 * touching `followActive`/`fxActive` (Codename Engine API).
+	 */
+	public var paused:Bool = false;
+
 	override public function update(elapsed:Float):Void
 	{
 		// follow the target, if there is one
-		if (target != null && followActive)
+		if (target != null && followActive && !paused)
 		{
 			updateFollow();
 			updateLerp(elapsed);
@@ -1211,7 +1217,7 @@ class FlxCamera extends FlxBasic
 		updateScroll();
 		updateFlashSpritePosition();
 
-		if (fxActive)
+		if (fxActive && !paused)
 		{
 			updateFlash(elapsed);
 			updateFade(elapsed);

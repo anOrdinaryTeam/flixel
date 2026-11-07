@@ -545,8 +545,18 @@ class FlxSound extends FlxBasic
 	 * @param   StartTime      At which point to start playing the sound, in milliseconds.
 	 *                         Only used when the sound starts from the beginning (or `ForceRestart` is true).
 	 */
-	public function play(ForceRestart:Bool = false, StartTime:Float = 0.0):FlxSound
+	public function play(ForceRestart:Bool = false, StartTime:Float = 0.0, ?EndTime:Float, ?Volume:Float, ?Pitch:Float, ?Pan:Float):FlxSound
 	{
+		// optional overrides, as in Codename Engine's FlxSound.play
+		if (EndTime != null)
+			endTime = EndTime;
+		if (Volume != null)
+			volume = Volume;
+		if (Pitch != null)
+			pitch = Pitch;
+		if (Pan != null)
+			pan = Pan;
+
 		if (!exists || _source == null)
 			return this;
 			

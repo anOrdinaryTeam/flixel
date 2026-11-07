@@ -449,11 +449,8 @@ class FlxG
 	{
 		if (state == null || state._constructor == null)
 			FlxG.log.error("FlxG.resetState was called while switching states");
-		else if(!state._constructor.isInstance())
-			switchState(state._constructor);
 		else
-			// create new instance here so that state.switchTo is called (for backwards compatibility)
-			switchState(Type.createInstance(Type.getClass(state), []));
+			switchState(state._constructor);
 	}
 
 	/**
