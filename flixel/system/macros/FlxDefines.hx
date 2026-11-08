@@ -82,7 +82,6 @@ enum HelperDefines
 	FLX_FOCUS_LOST_SCREEN;
 	FLX_DEBUG;
 	FLX_STEAMWRAP;
-	FLX_CNE_FORK;
 
 	FLX_MOUSE_ADVANCED;
 	FLX_NATIVE_CURSOR;
@@ -315,7 +314,6 @@ class FlxDefines
 		#if (lime_shadow || lime_funkin || lime_vorbis)
 		define(FLX_STREAM_SOUND);
 		#end
-		define(FLX_CNE_FORK);
 	}
 
 	static function defineInversion(userDefine:UserDefines, invertedDefine:HelperDefines)
