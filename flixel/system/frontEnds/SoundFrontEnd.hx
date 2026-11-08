@@ -415,6 +415,15 @@ class SoundFrontEnd
 
 		// members were spliced directly, keep the group's counter in sync
 		@:privateAccess list.length = list.members.length;
+
+		// sounds taken out of the list (or never in it) must not outlive the state either
+		for (sound in @:privateAccess FlxSound._withSource.copy())
+		{
+			if (sound == music || (!forceDestroy && sound.persist))
+				continue;
+			trace('Destroying a sound left outside FlxG.sound.list on state switch: ${sound.data != null ? sound.data.key : "?"}');
+			sound.destroy();
+		}
 	}
 
 	/**

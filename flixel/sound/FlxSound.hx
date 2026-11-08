@@ -444,6 +444,7 @@ class FlxSound extends FlxBasic
 			_detachEffects();
 			_source.dispose();
 			_source = null;
+			_withSource.remove(this);
 		}
 		
 		_sound = null;
@@ -624,6 +625,7 @@ class FlxSound extends FlxBasic
 			_detachEffects();
 			_source.dispose();
 			_source = null;
+			_withSource.remove(this);
 		}
 
 		_sound = null;
@@ -730,6 +732,8 @@ class FlxSound extends FlxBasic
 			@:privateAccess
 			_source = new AudioSource(_sound.__buffer);
 			_source.onComplete.add(stopped);
+			if (!_withSource.contains(this))
+				_withSource.push(this);
 			for (effect in _effects)
 				_source.addEffect(effect);
 		}
@@ -986,6 +990,12 @@ class FlxSound extends FlxBasic
 	 * @since CodenameCrew's Flixel
 	 */
 	public static var defaultTimeScaledPitch:Bool = true;
+
+	/**
+	 * Every sound with a source, so a state switch can also reach sounds outside `FlxG.sound.list`.
+	 */
+	@:allow(flixel.system.frontEnds.SoundFrontEnd)
+	static var _withSource:Array<FlxSound> = [];
 
 	/**
 	 * Sound data this `FlxSound` plays.
