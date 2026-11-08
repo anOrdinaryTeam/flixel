@@ -59,6 +59,9 @@ class SoundFrontEnd
 	 */
 	public var canAutoPause:Bool = true;
 
+	// whether onFocusLost stopped the audio engine, to start it again on focus
+	var _suspendedAudio:Bool = false;
+
 	/**
 	 * Whether playback follows the system default output device.
 	 * Turning it on moves playback back to the default device.
@@ -673,6 +676,10 @@ class SoundFrontEnd
 				sound.onFocusLost();
 			}
 		}
+
+		// stop the output too, so nothing keeps playing while unfocused, even a sound outside this list
+		_suspendedAudio = @:privateAccess AudioManager.active;
+		AudioManager.suspend();
 	}
 
 	@:allow(flixel.FlxGame)
@@ -681,6 +688,12 @@ class SoundFrontEnd
 		if (!_lostFocusPause)
 			return;
 		_lostFocusPause = false;
+
+		if (_suspendedAudio)
+		{
+			_suspendedAudio = false;
+			AudioManager.resume();
+		}
 
 		if (music != null)
 		{
