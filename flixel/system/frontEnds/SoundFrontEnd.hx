@@ -678,8 +678,12 @@ class SoundFrontEnd
 		}
 
 		// stop the output too, so nothing keeps playing while unfocused, even a sound outside this list
-		_suspendedAudio = @:privateAccess AudioManager.active;
-		AudioManager.suspend();
+		// a repeated focus loss must not forget that the engine was running
+		if (@:privateAccess AudioManager.active)
+		{
+			_suspendedAudio = true;
+			AudioManager.suspend();
+		}
 	}
 
 	@:allow(flixel.FlxGame)
