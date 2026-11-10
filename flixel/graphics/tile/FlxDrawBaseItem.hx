@@ -16,6 +16,7 @@ class FlxDrawBaseItem<T> {
 	public static var drawCalls:Int = 0;
 
 	static var hasTransformValue:Array<Bool> = [true];
+	static var emptyColorsArray:Array<ColorTransform> = [];
 
 	public var nextTyped:T;
 	public var next:FlxDrawBaseItem<T>;
@@ -125,13 +126,16 @@ class FlxDrawBaseItem<T> {
 	}
 
 	function addColorTransforms(transforms:Array<ColorTransform>, n:Int) {
-		var transform = colorIdentity;
+		if (transforms == null) transforms = emptyColorsArray;
+
 		if (colored) {
+			var transform:ColorTransform;
+
 			colorMultipliers.resize((tempIndex = colorMultipliers.length) + 4 * n);
 			if (hasColorOffsets) {
 				colorOffsets.resize((tempIndex2 = colorOffsets.length) + 4 * n);
 				for (i in 0...n) {
-					if (transforms != null) transform = transforms[i] ?? colorIdentity;
+					transform = transforms[i] ?? colorIdentity;
 					colorMultipliers[tempIndex++] = transform.redMultiplier;
 					colorMultipliers[tempIndex++] = transform.greenMultiplier;
 					colorMultipliers[tempIndex++] = transform.blueMultiplier;
@@ -144,7 +148,7 @@ class FlxDrawBaseItem<T> {
 			}
 			else {
 				for (i in 0...n) {
-					if (transforms != null) transform = transforms[i] ?? colorIdentity;
+					transform = transforms[i] ?? colorIdentity;
 					colorMultipliers[tempIndex++] = transform.redMultiplier;
 					colorMultipliers[tempIndex++] = transform.greenMultiplier;
 					colorMultipliers[tempIndex++] = transform.blueMultiplier;
@@ -155,9 +159,11 @@ class FlxDrawBaseItem<T> {
 		else {
 			alphas.resize((tempIndex = alphas.length) + transforms.length);
 			if (hasColorOffsets) {
+				var transform:ColorTransform;
+
 				colorOffsets.resize((tempIndex2 = colorOffsets.length) + 4 * transforms.length);
 				for (i in 0...n) {
-					if (transforms != null) transform = transforms[i] ?? colorIdentity;
+					transform = transforms[i] ?? colorIdentity;
 					alphas[tempIndex++] = transform.alphaMultiplier;
 					colorOffsets[tempIndex2++] = transform.redOffset;
 					colorOffsets[tempIndex2++] = transform.greenOffset;
@@ -166,10 +172,7 @@ class FlxDrawBaseItem<T> {
 				}
 			}
 			else {
-				for (i in 0...n) {
-					if (transforms != null) transform = transforms[i] ?? colorIdentity;
-					alphas[tempIndex++] = transform.alphaMultiplier;
-				}
+				for (i in 0...n) alphas[tempIndex++] = (transforms[i] ?? colorIdentity).alphaMultiplier;
 			}
 		}
 	}
