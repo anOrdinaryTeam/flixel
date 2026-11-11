@@ -183,7 +183,7 @@ class FlxAnimation extends FlxBaseAnimation
 
 		reversed = Reversed;
 		paused = false;
-		_frameTimer = 0;
+		_frameTimer = FlxG.elapsed * 0.5;
 		_playTicks = FlxG.game.ticks;
 		finished = frameDuration == 0;
 
@@ -264,13 +264,7 @@ class FlxAnimation extends FlxBaseAnimation
 
 	override public function update(elapsed:Float):Void
 	{
-		if (_playTicks == FlxG.game.ticks)
-		{
-			_playTicks = null;
-			return;
-		}
-
-		if (paused)
+		if (paused || _playTicks == FlxG.game.ticks)
 			return;
 
 		if (_frameFinishedEndTimer > 0)
@@ -282,17 +276,17 @@ class FlxAnimation extends FlxBaseAnimation
 				_doFinishedEndCallback();
 			}
 		}
-		if (finished)
-			return;
 
-		var curFrameDuration = getCurrentFrameDuration();
-		if (curFrameDuration == 0)
+		var curFrameDuration:Float;
+		if (finished || (curFrameDuration = getCurrentFrameDuration()) == 0)
 			return;
 
 		_frameTimer += elapsed * timeScale;
-		while (_frameTimer > curFrameDuration && !finished)
+
+		while (_frameTimer >= curFrameDuration)
 		{
 			_frameTimer -= curFrameDuration;
+
 			if (reversed)
 			{
 				if (looped && curFrame == loopPoint)
@@ -320,11 +314,8 @@ class FlxAnimation extends FlxBaseAnimation
 				}
 			}
 
-			// prevents null ref when the sprite is destroyed on finishCallback (#2782)
-			if (finished)
-				break;
-
-			curFrameDuration = getCurrentFrameDuration();
+			if (finished || (curFrameDuration = getCurrentFrameDuration()) == 0)
+				return;
 		}
 	}
 
